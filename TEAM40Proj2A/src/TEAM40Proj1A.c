@@ -10,12 +10,15 @@
 #define PIN2 1
 #define PIN3 2
 #define PIN4 3
+#define PIN5 4
+#define PIN6 1;
+#define PIN7 0;
 #define LED_PORT GPIOC
 #define Btn 13
 #define FREQ 16000000UL
-#define ALT_FREQ
-#define COMC_PORT 0;
-#define COMC_PIN 0;
+#define ALT_FREQ 500000
+#define COMC_PORT GPIOB
+#define COMC_PIN 0
 
 bool firstDigit = true;
 int counter = 0;
@@ -57,40 +60,41 @@ void TIM2_IRQHandler(void) {
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
     }
+}
 
-    int main() {
-        //enabling C clock for our PCx pins for the pmod, also the button
-        RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
-        //enable SYSCFG clock for EXTI handler
-        RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+int main() {
+    //enabling C clock for our PCx pins for the pmod, also the button
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
+    //enable SYSCFG clock for EXTI handler
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-        //systick timer configuration
-        SysTick->LOAD = FREQ - 1; // this is where 250 ms is calculated and set on the timer
-        SysTick->VAL = 0; // this clears the timer to 0 so it can start counting from 0
-        SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk;
-        NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
+    //systick timer configuration
+    SysTick->LOAD = FREQ - 1; // this is where 250 ms is calculated and set on the timer
+    SysTick->VAL = 0; // this clears the timer to 0 so it can start counting from 0
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk;
+    NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
 
-        //sets up interrupts for the button
-        EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
-        EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
-        SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
-        SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
-        NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
-        NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
+    //sets up interrupts for the button
+    EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
+    EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
+    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
+    NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
+    NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
 
-        //TIM2 Timer
-        RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
-        TIM2->PSC = 15; // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
-        TIM2->ARR = ALT_FREQ - 1; // Auto-reload when CNT = XX: (period = XX usec)
-        TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
-        TIM2->SR &= ~TIM_SR_UIF; // Clear any pending interrupt
-        NVIC_EnableIRQ(TIM2_IRQn); // Enable TIM2 interrupt in NVIC
-        NVIC_SetPriority(TIM2_IRQn, 1); // Set priority for TIM2
-        TIM2->CR1 = TIM_CR1_CEN; // Enable TIM2
+    //TIM2 Timer
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
+    TIM2->PSC = 15; // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
+    TIM2->ARR = ALT_FREQ - 1; // Auto-reload when CNT = XX: (period = XX usec)
+    TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
+    TIM2->SR &= ~TIM_SR_UIF; // Clear any pending interrupt
+    NVIC_EnableIRQ(TIM2_IRQn); // Enable TIM2 interrupt in NVIC
+    NVIC_SetPriority(TIM2_IRQn, 1); // Set priority for TIM2
+    TIM2->CR1 = TIM_CR1_CEN; // Enable TIM2
 
-        //runs infinitely so the handlers can run
-        //no code needs to be here because the handlers run internally on the board
-        while (1) {}
+    //runs infinitely so the handlers can run
+    //no code needs to be here because the handlers run internally on the board
+    while (1) {}
 
-        return 0;
-    }
+    return 0;
+}
