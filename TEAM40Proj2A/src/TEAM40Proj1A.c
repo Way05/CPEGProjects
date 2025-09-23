@@ -14,7 +14,7 @@
 #define PIN6 1;
 #define PIN7 0;
 #define LED_PORT GPIOC
-#define LED_PORT2 GPIOA;
+#define Btn 13
 #define FREQ 16000000UL
 #define ALT_FREQ 500000
 #define COMC_PORT GPIOB
@@ -54,7 +54,6 @@ void TIM2_IRQHandler(void) {
             COMC_PORT->ODR |= (1 << COMC_PIN); // Turn on common pin for first digit
             int firstDigit = counter / 10; // Get the first digit
             if (firstDigit == 0) { // If first digit is 0 turn off all segments
-                LED_PORT->ODR &= (0 << PIN1);
 
             }
             firstDigit = !firstDigit; // Toggle digitSelect for next interrupt
@@ -76,12 +75,12 @@ int main() {
     NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
 
     //sets up interrupts for the button
-    // EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
-    // EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
-    // SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
-    // SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
-    // NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
-    // NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
+    EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
+    EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
+    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
+    NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
+    NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
 
     //TIM2 Timer
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
