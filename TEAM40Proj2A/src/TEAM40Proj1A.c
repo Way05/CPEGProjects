@@ -35,7 +35,10 @@ const unsigned char digitSegments[] = {
 };
 
 void SysTick_Handler(void) {
-
+    counter++;
+    if (counter > 99) {
+        counter = 0;
+    }
 }
 
 void EXTI15_10_IRQHandler(void) {
@@ -62,7 +65,7 @@ void TIM2_IRQHandler(void) {
         RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
         //systick timer configuration
-        SysTick->LOAD = FREQ / 4 - 1; // this is where 250 ms is calculated and set on the timer
+        SysTick->LOAD = FREQ - 1; // this is where 250 ms is calculated and set on the timer
         SysTick->VAL = 0; // this clears the timer to 0 so it can start counting from 0
         SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk;
         NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
