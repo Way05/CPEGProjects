@@ -13,7 +13,7 @@
 #define PIN5 4
 #define PIN6 5
 #define PIN7 6
-#define FREQ 16000000UL
+#define FREQ 16000000UL / 4
 #define ALT_FREQ 500
 #define COMC_PORT GPIOC
 #define COMC_PIN 0
@@ -50,44 +50,44 @@ void TIM2_IRQHandler(void) {
         if (tensDigit) { // If digitSelect is true, update the first digit
             COMC_PORT->ODR |= (1 << COMC_PIN); // Turn on common pin for first digit
             int firstDigit = counter / 10; // Get the first digit
-            // if (firstDigit == 0) {
-            //     GPIOB->ODR &= (((digitSegments[10] >> 0) & 1) << PIN1);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 1) & 1) << PIN2);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 2) & 1) << PIN3);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 3) & 1) << PIN4);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 4) & 1) << PIN5);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 5) & 1) << PIN6);
-            //     GPIOB->ODR &= (((digitSegments[10] >> 6) & 1) << PIN7);
-            // }
-            // else {
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 3) & 1) << PIN4);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 4) & 1) << PIN5);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
-            //     GPIOB->ODR &= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
-            // }
             if (firstDigit == 0) {
-                GPIOB->ODR &= digitSegments[10];
+                GPIOB->ODR &= (((digitSegments[10] >> 0) & 1) << PIN1);
+                GPIOB->ODR &= (((digitSegments[10] >> 1) & 1) << PIN2);
+                GPIOB->ODR &= (((digitSegments[10] >> 2) & 1) << PIN3);
+                GPIOB->ODR &= (((digitSegments[10] >> 3) & 1) << PIN4);
+                GPIOB->ODR &= (((digitSegments[10] >> 4) & 1) << PIN5);
+                GPIOB->ODR &= (((digitSegments[10] >> 5) & 1) << PIN6);
+                GPIOB->ODR &= (((digitSegments[10] >> 6) & 1) << PIN7);
             }
             else {
-                GPIOB->ODR |= digitSegments[firstDigit];
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 3) & 1) << PIN4);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 4) & 1) << PIN5);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
+                GPIOB->ODR |= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
             }
+            // if (firstDigit == 0) {
+            //     GPIOB->ODR &= digitSegments[10];
+            // }
+            // else {
+            //     GPIOB->ODR |= digitSegments[firstDigit];
+            // }
             tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
         else {
             COMC_PORT->ODR &= ~(1 << COMC_PIN); // Turn on common pin for first digit
             int firstDigit = counter % 10; // Get the first digit
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 3) & 1) << PIN4);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 4) & 1) << PIN5);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
-            // GPIOB->ODR &= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
-            GPIOB->ODR |= digitSegments[firstDigit];
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 3) & 1) << PIN4);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 4) & 1) << PIN5);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
+            GPIOB->ODR |= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
+            // GPIOB->ODR |= digitSegments[firstDigit];
             tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
