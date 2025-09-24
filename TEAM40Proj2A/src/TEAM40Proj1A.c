@@ -11,16 +11,15 @@
 #define PIN3 2
 #define PIN4 3
 #define PIN5 4
-#define PIN6 1;
-#define PIN7 0;
-#define LED_PORT GPIOC
-#define Btn 13
+#define PIN6 5
+#define PIN7 6
+#define LED_PORT GPIOB
 #define FREQ 16000000UL
-#define ALT_FREQ 500000
-#define COMC_PORT GPIOB
+#define ALT_FREQ 500
+#define COMC_PORT GPIOC
 #define COMC_PIN 0
 
-bool firstDigit = true;
+bool tensDigit = false;
 int counter = 0;
 
 const unsigned char digitSegments[] = {
@@ -50,23 +49,49 @@ void EXTI15_10_IRQHandler(void) {
 
 void TIM2_IRQHandler(void) {
     if (TIM2->SR & TIM_SR_UIF) { // Check if the update interrupt flag is set
-        if (firstDigit) { // If digitSelect is true, update the first digit
-            COMC_PORT->ODR |= (1 << COMC_PIN); // Turn on common pin for first digit
+        if (tensDigit) { // If digitSelect is true, update the first digit
+            COMC_PORT->ODR &= (1 << COMC_PIN); // Turn on common pin for first digit
             int firstDigit = counter / 10; // Get the first digit
-            if (firstDigit == 0) { // If first digit is 0 turn off all segments
-
-            }
-            firstDigit = !firstDigit; // Toggle digitSelect for next interrupt
+            LED_PORT->ODR &= digitSegments[firstDigit];
+            tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
+        // else {
+        //     COMC_PORT->ODR |= (1 << COMC_PIN); // Turn on common pin for first digit
+        //     int firstDigit = counter % 10; // Get the first digit
+        //     LED_PORT->ODR &= digitSegments[firstDigit];
+        //     tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
+        //     TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
+        // }
     }
 }
 
 int main() {
     //enabling C clock for our PCx pins for the pmod, also the button
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
     //enable SYSCFG clock for EXTI handler
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+    //clearing and setting mode bits for PMOD pins for output
+    LED_PORT->MODER &= ~(0x3 << (PIN1 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN1 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN2 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN2 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN3 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN3 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN4 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN4 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN5 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN5 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN6 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN6 * 2));
+    LED_PORT->MODER &= ~(0x3 << (PIN7 * 2));
+    LED_PORT->MODER |= (0x1 << (PIN7 * 2));
+
+    COMC_PORT->MODER &= ~(0x3 << (COMC_PIN * 2));
+    COMC_PORT->MODER |= (0x1 << (COMC_PIN * 2));
 
     //systick timer configuration
     SysTick->LOAD = FREQ - 1; // this is where 250 ms is calculated and set on the timer
@@ -75,12 +100,12 @@ int main() {
     NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
 
     //sets up interrupts for the button
-    EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
-    EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
-    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
-    SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
-    NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
-    NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
+    // EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
+    // EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
+    // SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    // SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
+    // NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
+    // NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
 
     //TIM2 Timer
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
