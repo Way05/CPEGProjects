@@ -13,7 +13,7 @@
 #define PIN5 4
 #define PIN6 1
 #define PIN7 0
-#define FREQ 16000000UL / 4
+#define FREQ 16000000UL
 #define CAT_FREQ 500
 #define COMC_PORT GPIOB
 #define COMC_PIN 0
