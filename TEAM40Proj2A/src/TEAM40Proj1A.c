@@ -1,7 +1,7 @@
 /*
 * TEAM40: W. Tan and M. Becker
-* CPEG222 Project 1B, 9/9/25
-* NucleoF466RE CMSIS Sequence PMOD LEDs with software delays
+* CPEG222 Project 2A, 9/26/25
+* NucleoF466RE CMSIS PMOD Seven Segment Counter
 */
 
 #include "stm32f4xx.h"
@@ -14,7 +14,7 @@
 #define PIN6 1
 #define PIN7 0
 #define FREQ 16000000UL / 4
-#define ALT_FREQ 500
+#define CAT_FREQ 500
 #define COMC_PORT GPIOB
 #define COMC_PIN 0
 
@@ -45,8 +45,9 @@ void SysTick_Handler(void) {
 // void EXTI15_10_IRQHandler(void) {}
 
 void TIM2_IRQHandler(void) {
-    GPIOC->ODR &= (((digitSegments[10] >> 0) & 1) << PIN1);
-    GPIOC->ODR &= (((digitSegments[10] >> 1) & 1) << PIN2);
+    //first clear segment
+    GPIOC->ODR &= (((digitSegments[10] >> 0) & 1) << PIN1); // (1) bitshift and compare the corresponding PMOD segment to get individual bit,
+    GPIOC->ODR &= (((digitSegments[10] >> 1) & 1) << PIN2); // (2) then shift into pin
     GPIOC->ODR &= (((digitSegments[10] >> 2) & 1) << PIN3);
     GPIOC->ODR &= (((digitSegments[10] >> 3) & 1) << PIN4);
     GPIOA->ODR &= (((digitSegments[10] >> 4) & 1) << PIN5);
@@ -54,9 +55,10 @@ void TIM2_IRQHandler(void) {
     GPIOA->ODR &= (((digitSegments[10] >> 6) & 1) << PIN7);
     if (TIM2->SR & TIM_SR_UIF) { // Check if the update interrupt flag is set
         GPIOB->ODR &= digitSegments[10];
-        if (tensDigit) { // If digitSelect is true, update the first digit
+        if (tensDigit) { // If tensDigit is true, update the first digit
             COMC_PORT->ODR |= (1 << COMC_PIN); // Turn on common pin for first digit
             int firstDigit = counter / 10; // Get the first digit
+            //if zero display blank
             if (firstDigit == 0) {
                 GPIOC->ODR &= (((digitSegments[10] >> 0) & 1) << PIN1);
                 GPIOC->ODR &= (((digitSegments[10] >> 1) & 1) << PIN2);
@@ -67,6 +69,7 @@ void TIM2_IRQHandler(void) {
                 GPIOA->ODR &= (((digitSegments[10] >> 6) & 1) << PIN7);
             }
             else {
+                //else display the right number
                 GPIOC->ODR |= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
                 GPIOC->ODR |= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
                 GPIOC->ODR |= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
@@ -75,18 +78,13 @@ void TIM2_IRQHandler(void) {
                 GPIOA->ODR |= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
                 GPIOA->ODR |= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
             }
-            // if (firstDigit == 0) {
-            //     GPIOB->ODR &= digitSegments[10];
-            // }
-            // else {
-            //     GPIOB->ODR |= digitSegments[firstDigit];
-            // }
             tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
         else {
-            COMC_PORT->ODR &= ~(1 << COMC_PIN); // Turn on common pin for first digit
-            int firstDigit = counter % 10; // Get the first digit
+            COMC_PORT->ODR &= ~(1 << COMC_PIN); // Turn on common pin for second digit
+            int firstDigit = counter % 10; // Get the second digit
+            //display second number
             GPIOC->ODR |= (((digitSegments[firstDigit] >> 0) & 1) << PIN1);
             GPIOC->ODR |= (((digitSegments[firstDigit] >> 1) & 1) << PIN2);
             GPIOC->ODR |= (((digitSegments[firstDigit] >> 2) & 1) << PIN3);
@@ -94,7 +92,6 @@ void TIM2_IRQHandler(void) {
             GPIOA->ODR |= (((digitSegments[firstDigit] >> 4) & 1) << PIN5);
             GPIOA->ODR |= (((digitSegments[firstDigit] >> 5) & 1) << PIN6);
             GPIOA->ODR |= (((digitSegments[firstDigit] >> 6) & 1) << PIN7);
-            // GPIOB->ODR |= digitSegments[firstDigit];
             tensDigit = !tensDigit; // Toggle digitSelect for next interrupt
             TIM2->SR &= ~TIM_SR_UIF; // Clear the update interrupt flag
         }
@@ -108,7 +105,7 @@ int main() {
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
 
     //enable SYSCFG clock for EXTI handler
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+    // RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     //clearing and setting mode bits for PMOD pins for output
     GPIOC->MODER &= ~(0x3 << (PIN1 * 2));
@@ -131,7 +128,7 @@ int main() {
     COMC_PORT->MODER |= (0x1 << (COMC_PIN * 2));
 
     //systick timer configuration
-    SysTick->LOAD = FREQ - 1; // this is where 250 ms is calculated and set on the timer
+    SysTick->LOAD = FREQ - 1; // this is where 1s is calculated and set on the timer
     SysTick->VAL = 0; // this clears the timer to 0 so it can start counting from 0
     SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk;
     NVIC_SetPriority(SysTick_IRQn, 1); //setting priority
@@ -139,7 +136,7 @@ int main() {
     //TIM2 Timer
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock
     TIM2->PSC = 15; // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
-    TIM2->ARR = ALT_FREQ - 1; // Auto-reload when CNT = XX: (period = XX usec)
+    TIM2->ARR = CAT_FREQ - 1; // Auto-reload when CNT = XX: (period = XX usec)
     TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
     TIM2->SR &= ~TIM_SR_UIF; // Clear any pending interrupt
     NVIC_EnableIRQ(TIM2_IRQn); // Enable TIM2 interrupt in NVIC
@@ -153,10 +150,6 @@ int main() {
     // SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
     // NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
     // NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
-
-    //runs infinitely so the handlers can run
-    //no code needs to be here because the handlers run internally on the board
-    // while (1) {}
 
     return 0;
 }
