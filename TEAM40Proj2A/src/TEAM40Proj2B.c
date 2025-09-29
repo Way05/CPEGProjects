@@ -1,6 +1,6 @@
 /*
 * TEAM40: W. Tan and M. Becker
-* CPEG222 Project 2A, 9/26/25
+* CPEG222 Project 2B, 9/26/25
 * NucleoF466RE CMSIS PMOD Seven Segment Counter
 */
 
@@ -20,6 +20,7 @@
 
 bool tensDigit = false;
 int counter = 0;
+bool isPaused = false;
 
 const unsigned char digitSegments[] = {
     0b0111111, // 0
@@ -36,13 +37,17 @@ const unsigned char digitSegments[] = {
 };
 
 void SysTick_Handler(void) {
-    counter++;
+    if (!isPaused) {
+        counter++;
+    }
     if (counter > 99) {
         counter = 0;
     }
 }
 
-// void EXTI15_10_IRQHandler(void) {}
+void EXTI15_10_IRQHandler(void) {
+    isPaused = !isPaused;
+}
 
 void TIM2_IRQHandler(void) {
     //first clear segment
@@ -143,13 +148,13 @@ int main() {
     NVIC_SetPriority(TIM2_IRQn, 1); // Set priority for TIM2
     TIM2->CR1 = TIM_CR1_CEN; // Enable TIM2
 
-    //sets up interrupts for the button
-    // EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
-    // EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
-    // SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
-    // SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
-    // NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
-    // NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
+    sets up interrupts for the button
+        EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
+    EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
+    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
+    NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
+    NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
 
     return 0;
 }
