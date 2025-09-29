@@ -17,10 +17,14 @@
 #define CAT_FREQ 500
 #define COMC_PORT GPIOB
 #define COMC_PIN 0
+#define Btn 13  
 
 bool tensDigit = false;
 int counter = 0;
 bool isPaused = false;
+
+volatile uint32_t currentPress = 0; // variable to track time between button presses
+volatile uint32_t lastPress = 0; // variable to track time between button presses
 
 const unsigned char digitSegments[] = {
     0b0111111, // 0
@@ -46,7 +50,15 @@ void SysTick_Handler(void) {
 }
 
 void EXTI15_10_IRQHandler(void) {
-    isPaused = !isPaused;
+    currentPress = TIM5->CNT; // Get the current timer count
+    if ((currentPress - lastPress) < 1000UL) { // If the time between presses is less than 1 second
+        counter = 0; // Reset the counter
+        isPaused = false; // Ensure we resume counting
+    }
+    else {
+        isPaused = !isPaused; // Toggle PAUSE state
+    }
+    lastPress = currentPress; // Update lastPress2 to currentPress
 }
 
 void TIM2_IRQHandler(void) {
@@ -103,6 +115,8 @@ void TIM2_IRQHandler(void) {
     }
 }
 
+void TIM5_IRQHandler(void) {}
+
 int main() {
     //enabling clocks
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
@@ -110,7 +124,7 @@ int main() {
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
 
     //enable SYSCFG clock for EXTI handler
-    // RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     //clearing and setting mode bits for PMOD pins for output
     GPIOC->MODER &= ~(0x3 << (PIN1 * 2));
@@ -148,13 +162,20 @@ int main() {
     NVIC_SetPriority(TIM2_IRQn, 1); // Set priority for TIM2
     TIM2->CR1 = TIM_CR1_CEN; // Enable TIM2
 
-    sets up interrupts for the button
-        EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
+    //sets up interrupts for the button
+    EXTI->IMR |= (1 << Btn); // unmasks EXTI so it can be used
     EXTI->FTSR |= (1 << Btn); // button triggers on falling edge
     SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
     SYSCFG->EXTICR[3] |= (2 << (1 * 4)); // maps ExTI to PC13 button
     NVIC_SetPriority(EXTI15_10_IRQn, 0); // sets priority of the button interrupt to most important
     NVIC_EnableIRQ(EXTI15_10_IRQn); // enables EXTI line interrupt in NVIC
+
+    // Configure TIM5 as a free-running timer with each tick equal to 1 msec
+    RCC->APB1ENR |= RCC_APB1ENR_TIM5EN; // Enable TIM5 clock
+    TIM5->PSC = 15999; // Prescaler: (16MHz/(1599+1) = 1kHz, 1msec period)
+    TIM5->ARR = 0xFFFFFFFF; // Auto-reload: Max value for free running (32-bits)
+    TIM5->EGR = TIM_EGR_UG; // Update event generation register
+    TIM5->CR1 = TIM_CR1_CEN; // Enable TIM5
 
     return 0;
 }
