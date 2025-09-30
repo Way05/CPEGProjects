@@ -50,15 +50,18 @@ void SysTick_Handler(void) {
 }
 
 void EXTI15_10_IRQHandler(void) {
-    currentPress = TIM5->CNT; // Get the current timer count
-    if ((currentPress - lastPress) < 1000UL) { // If the time between presses is less than 1 second
-        counter = 0; // Reset the counter
-        isPaused = false; // Ensure we resume counting
+    if (EXTI->PR & (1 << Btn)) { // checks if button is interrupting
+        EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
+        currentPress = TIM5->CNT; // Get the current timer count
+        if ((currentPress - lastPress) < 1000UL) { // If the time between presses is less than 1 second
+            counter = 0; // Reset the counter
+            isPaused = false; // Ensure we resume counting
+        }
+        else {
+            isPaused = !isPaused; // Toggle PAUSE state
+        }
+        lastPress = currentPress; // Update lastPress2 to currentPress
     }
-    else {
-        isPaused = !isPaused; // Toggle PAUSE state
-    }
-    lastPress = currentPress; // Update lastPress2 to currentPress
 }
 
 void TIM2_IRQHandler(void) {
