@@ -10,14 +10,14 @@
 #include "SSD_Array.h"
 #include <stdbool.h>
 
-#define FREQUENCY 16000000 // HSI clock frequency
+#define FREQUENCY 16000000
 #define TRIG_PORT GPIOA
 #define TRIG_PIN 4
 #define ECHO_PORT GPIOB
 #define ECHO_PIN 0
 
-#define UART_TX_PIN 2 // PA2
-#define UART_RX_PIN 3 // PA3
+#define UART_TX_PIN 2
+#define UART_RX_PIN 3
 #define UART_PORT GPIOA
 #define BAUDRATE 115200
 
@@ -64,17 +64,23 @@ void SysTick_Handler(void)
     ;                                 // Wait for 10us
   TRIG_PORT->ODR &= ~(1 << TRIG_PIN); // Set the trigger pin low
 
-  // Wait for echo pin to go high (start of echo pulse)
+  //*IMPORTANT*
+  // IDR: input data register
+  // we read the specific pin using the bitshift ECHO_PIN to get whether the sensor is reading high or low
+  // basically we get the specific bit in the register and check it in the while loop
+  // 1: high, 0: low
+
+  // wait for echo signal to be high
   while (!(ECHO_PORT->IDR & (1 << ECHO_PIN)))
     ;
-  before = TIM5->CNT; // Record timer value at rising edge
+  before = TIM5->CNT; // get time at high
 
-  // Wait for echo pin to go low (end of echo pulse)
+  // wait for echo signal to go low
   while (ECHO_PORT->IDR & (1 << ECHO_PIN))
     ;
-  after = TIM5->CNT; // Record timer value at falling edge
+  after = TIM5->CNT; // get time at low
 
-  int pulse_width = after - before;
+  int pulse_width = after - before; // calculates the length of the echo pulse
 
   if (isCM)
   {
@@ -111,7 +117,7 @@ void EXTI15_10_IRQHandler(void)
   if (EXTI->PR & (1 << Btn))
   {                         // checks if button is interrupting
     EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
-    isCM = !isCM;
+    isCM = !isCM;           // changes bool for centimeter or not
   }
 }
 
@@ -119,14 +125,16 @@ int main(void)
 {
   SSD_init(); // Initialize SSD GPIO pins
 
+  // clocks setup
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-  TRIG_PORT->MODER &= ~(0x3 << (TRIG_PIN * 2));
+  // sensor port setup
+  TRIG_PORT->MODER &= ~(0x3 << (TRIG_PIN * 2)); // trig port clear mode and set to output
   TRIG_PORT->MODER |= (0x1 << (TRIG_PIN * 2));
-  ECHO_PORT->MODER &= ~(0x3 << (ECHO_PIN * 2));
+  ECHO_PORT->MODER &= ~(0x3 << (ECHO_PIN * 2)); // echo port clear to the default input mode
 
   //   SysTick->LOAD = FREQUENCY/10 -1; 			// Load value for 0.1 second at 16 MHz
   //   SysTick->VAL = 0;         				// Clear current value
@@ -134,6 +142,7 @@ int main(void)
   //   NVIC_SetPriority(SysTick_IRQn, 1); 	// Set the SysTick priority (optional)
   SysTick_Config(FREQUENCY / 2); // Configure SysTick for 500 millisecond interrupts
 
+  // button setup
   EXTI->IMR |= (1 << Btn);                // unmasks EXTI so it can be used
   EXTI->FTSR |= (1 << Btn);               // button triggers on falling edge
   SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
@@ -158,17 +167,17 @@ int main(void)
   TIM5->EGR = TIM_EGR_UG;             // Update event generation register
   TIM5->CR1 = TIM_CR1_CEN;            // Enable TIM5
 
+  // enable uart
   RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
   // Set PA2 (TX) and PA3 (RX) to alternate function
   GPIOA->MODER &= ~((3 << (UART_TX_PIN * 2)) | (3 << (UART_RX_PIN * 2))); // Clear mode bits
   GPIOA->MODER |= (2 << (UART_TX_PIN * 2)) | (2 << (UART_RX_PIN * 2));    // AF mode
   GPIOA->AFR[0] |= (7 << (UART_TX_PIN * 4)) | (7 << (UART_RX_PIN * 4));   // AF7 for USART2
-  // Configure USART2: 9600 baud, 8N1, enable TX and RX
+  // Configure USART2: 115200 baud, 8N1, enable TX and RX
   USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
   USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
   uart_sendString("CPEG222 Project 3 Part 1\r\n");
 
-  // 6. Main loop to update the SSD with numbers from 0 to 99
   while (1)
   {
     // A SysTick interrupt will update milliSec every second
