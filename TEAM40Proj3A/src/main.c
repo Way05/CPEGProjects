@@ -1,10 +1,9 @@
 // ****************************************************************
-// * TEAM 0: T. LUM and R. MARTIN
-// * CPEG222 StopWatch, 8/16/25
-// * NucleoF466RE CMSIS STM32F4xx example
-// * Display time in tenths of a second on the four digit 7-segment
-// * display using SysTick interrupts for counting 100 ms increments
-// * Use TIM2 to generate SSD refresh interrupts at 0.5ms intervals
+// * TEAM 40: W. Tan and M. Becker
+// * CPEG222 Project3 Part A, 10/17/25
+// * NucleoF466RE CMSIS STM32F4xx Sonic Sensor
+// * Display and output distance periodically using sonic sensor
+// * UART, TIM2, TIM5, SysTick
 // ****************************************************************
 #include "stm32f4xx.h"
 #include "SSD_Array.h"
