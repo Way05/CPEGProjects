@@ -127,7 +127,6 @@ int main(void)
   TRIG_PORT->MODER &= ~(0x3 << (TRIG_PIN * 2));
   TRIG_PORT->MODER |= (0x1 << (TRIG_PIN * 2));
   ECHO_PORT->MODER &= ~(0x3 << (ECHO_PIN * 2));
-  ECHO_PORT->MODER |= (0x1 << (TRIG_PIN * 2));
 
   //   SysTick->LOAD = FREQUENCY/10 -1; 			// Load value for 0.1 second at 16 MHz
   //   SysTick->VAL = 0;         				// Clear current value
