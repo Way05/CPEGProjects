@@ -8,6 +8,7 @@
 #include "stm32f4xx.h"
 #include "SSD_Array.h"
 #include <stdbool.h>
+#include <math.h>
 
 #define FREQUENCY 16000000
 #define TRIG_PORT GPIOA
@@ -20,6 +21,9 @@
 #define UART_PORT GPIOA
 #define BAUDRATE 115200
 
+#define SERVO3_PIN 6
+#define SERVO3_PORT GPIOC
+
 #define Btn 13
 
 void uart_sendChar(char c)
@@ -29,12 +33,19 @@ void uart_sendChar(char c)
   USART2->DR = c;
 }
 
-void uart_sendString(const char *str)
+void uart2_sendString(const char *str)
 {
   while (*str)
   {
     uart_sendChar(*str++);
   }
+}
+
+void uart2_send_int32(int32_t val)
+{
+  char buf[12];
+  sprintf(buf, "%ld", (long)val);
+  uart2_sendString(buf);
 }
 
 bool isCM = true;
@@ -43,6 +54,8 @@ volatile int digitSelect = 0;
 volatile int currentEdge = 0;
 volatile int before = 0;
 volatile int after = 0;
+
+int servo_pulse_width = 0;
 
 void TIM2_IRQHandler(void)
 {
@@ -108,7 +121,7 @@ void SysTick_Handler(void)
   {
     sprintf(str, "Dist: %.2f in\n", distance / 100);
   }
-  uart_sendString(str);
+  uart2_sendString(str);
 }
 
 void EXTI15_10_IRQHandler(void)
@@ -118,6 +131,12 @@ void EXTI15_10_IRQHandler(void)
     EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
     isCM = !isCM;           // changes bool for centimeter or not
   }
+}
+
+void servo_angle_set(int angle)
+{
+  servo_pulse_width = 1500 - (500 * (angle / 45.0)); // Map angle to pulse width (1ms to 2ms)
+  TIM3->CCR1 = servo_pulse_width;
 }
 
 int main(void)
@@ -175,11 +194,61 @@ int main(void)
   // Configure USART2: 115200 baud, 8N1, enable TX and RX
   USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
   USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
-  uart_sendString("CPEG222 Project 3 Part 1\r\n");
+  uart2_sendString("CPEG222 Project 3 Part 1\r\n");
 
+  // Enable GPIOC and TIM3 clocks
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
+  RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+  // Set PC6 to alternate function (AF2 for TIM3_CH1)
+  GPIOC->MODER &= ~(0x3 << (SERVO3_PIN * 2));
+  GPIOC->MODER |= (0x2 << (SERVO3_PIN * 2)); // Alternate function
+  GPIOC->AFR[0] &= ~(0xF << (SERVO3_PIN * 4));
+  GPIOC->AFR[0] |= (0x2 << (SERVO3_PIN * 4)); // AF2 = TIM3
+  // Configure TIM3 for PWM output on CH1 (PC6)
+  TIM3->PSC = (FREQUENCY / 1000000) - 1; // 16 MHz / 16 = 1 MHz timer clock (1us resolution)
+  TIM3->ARR = 19999;                     // Period for 50 Hz
+  TIM3->CCR1 = 1500;                     // Duty cycle (1.475 ms pulse width)
+  TIM3->CCMR1 &= ~(TIM_CCMR1_OC1M);
+  TIM3->CCMR1 |= (6 << TIM_CCMR1_OC1M_Pos); // PWM mode 1
+  TIM3->CCMR1 |= TIM_CCMR1_OC1PE;           // Preload enable
+  TIM3->CCER |= TIM_CCER_CC1E;              // Enable CH1 output (PC6)
+  TIM3->CR1 |= TIM_CR1_ARPE;                // Auto-reload preload enable
+  TIM3->EGR = TIM_EGR_UG;                   // Generate update event
+  TIM3->CR1 |= TIM_CR1_CEN;                 // Enable timer
+
+  uart2_sendString("CPEG222 Standard Servo Demo Program!\r\n");
+  uart2_sendString("Setting angle to 0 degrees.\r\n");
+  int angle = 0;
+  servo_angle_set(angle);
+  for (volatile int i = 0; i < 10000000UL; ++i)
+    ; // long delay to adjust the horn at 90 degrees
   while (1)
   {
-    // A SysTick interrupt will update milliSec every second
-    // A TIM2 interrupt will update a SSD every 0.5 ms
+    for (int angle = -45; angle <= 45; angle += 5)
+    {
+      servo_angle_set(angle);
+      uart2_sendString("angle(deg): ");
+      uart2_send_int32(angle);
+      uart2_sendString("\tservo pulsewidth(us): ");
+      uart2_send_int32(servo_pulse_width);
+      uart2_sendString("\r\n");
+      for (volatile int i = 0; i < 1000000; ++i)
+        ; // Simple delay
+    }
+    for (volatile int i = 0; i < 1000000; ++i)
+      ; // Simple delay
+    for (int angle = 45; angle >= -45; angle -= 5)
+    {
+      servo_angle_set(angle);
+      uart2_sendString("angle(deg): ");
+      uart2_send_int32(angle);
+      uart2_sendString("\tservo pulsewidth(us): ");
+      uart2_send_int32(servo_pulse_width);
+      uart2_sendString("\r\n");
+      for (volatile int i = 0; i < 1000000; ++i)
+        ; // Simple delay
+    }
+    for (volatile int i = 0; i < 1000000; ++i)
+      ; // Simple delay
   }
 }
