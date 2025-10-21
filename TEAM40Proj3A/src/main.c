@@ -197,7 +197,6 @@ int main(void)
   uart2_sendString("CPEG222 Project 3 Part 1\r\n");
 
   // Enable GPIOC and TIM3 clocks
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
   RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
   // Set PC6 to alternate function (AF2 for TIM3_CH1)
   GPIOC->MODER &= ~(0x3 << (SERVO3_PIN * 2));
