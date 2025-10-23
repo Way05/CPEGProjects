@@ -55,8 +55,7 @@ volatile int digitSelect = 0;
 volatile int currentEdge = 0;
 volatile int before = 0;
 volatile int after = 0;
-volatile int angle =0;
-
+volatile int angle = 0;
 
 int servo_pulse_width = 0;
 
@@ -126,26 +125,30 @@ void SysTick_Handler(void)
   }
   uart2_sendString(str);
 
-  if (increasing){
+  if (increasing)
+  {
     angle += 5;
-    } 
-  else {
-    angle -=5;
-    }
-  if(angle ==45 ){
+  }
+  else
+  {
+    angle -= 5;
+  }
+  if (angle == 45)
+  {
     increasing = false;
   }
-  else if (angle==-45){
+  else if (angle == -45)
+  {
     increasing = true;
-    }
+  }
   servo_angle_set(angle);
-    uart2_sendString("angle(deg): ");
-    uart2_send_int32(angle);
-    uart2_sendString("\tservo pulsewidth(us): ");
-    uart2_send_int32(servo_pulse_width);
-    uart2_sendString("\r\n");
-      //for (volatile int i = 0; i < 1000000; ++i)
-      // ; // Simple delay
+  uart2_sendString("angle(deg): ");
+  uart2_send_int32(angle);
+  uart2_sendString("\tservo pulsewidth(us): ");
+  uart2_send_int32(servo_pulse_width);
+  uart2_sendString("\r\n");
+  // for (volatile int i = 0; i < 1000000; ++i)
+  //  ; // Simple delay
 }
 
 void EXTI15_10_IRQHandler(void)
