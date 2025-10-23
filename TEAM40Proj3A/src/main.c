@@ -1,6 +1,6 @@
 // ****************************************************************
 // * TEAM 40: W. Tan and M. Becker
-// * CPEG222 Project3 Part A, 10/17/25
+// * CPEG222 Project3 Part B, 10/23/25
 // * NucleoF466RE CMSIS STM32F4xx Sonic Sensor
 // * Display and output distance periodically using sonic sensor
 // * UART, TIM2, TIM5, SysTick
@@ -49,11 +49,14 @@ void uart2_send_int32(int32_t val)
 }
 
 bool isCM = true;
+bool increasing = false;
 volatile float distance = 0;
 volatile int digitSelect = 0;
 volatile int currentEdge = 0;
 volatile int before = 0;
 volatile int after = 0;
+volatile int angle =0;
+
 
 int servo_pulse_width = 0;
 
@@ -122,6 +125,27 @@ void SysTick_Handler(void)
     sprintf(str, "Dist: %.2f in\n", distance / 100);
   }
   uart2_sendString(str);
+
+  if (increasing){
+    angle += 5;
+    } 
+  else {
+    angle -=5;
+    }
+  if(angle ==45 ){
+    increasing = false;
+  }
+  else if (angle==-45){
+    increasing = true;
+    }
+  servo_angle_set(angle);
+    uart2_sendString("angle(deg): ");
+    uart2_send_int32(angle);
+    uart2_sendString("\tservo pulsewidth(us): ");
+    uart2_send_int32(servo_pulse_width);
+    uart2_sendString("\r\n");
+      //for (volatile int i = 0; i < 1000000; ++i)
+      // ; // Simple delay
 }
 
 void EXTI15_10_IRQHandler(void)
@@ -223,31 +247,5 @@ int main(void)
     ; // long delay to adjust the horn at 90 degrees
   while (1)
   {
-    for (int angle = -45; angle <= 45; angle += 5)
-    {
-      servo_angle_set(angle);
-      uart2_sendString("angle(deg): ");
-      uart2_send_int32(angle);
-      uart2_sendString("\tservo pulsewidth(us): ");
-      uart2_send_int32(servo_pulse_width);
-      uart2_sendString("\r\n");
-      for (volatile int i = 0; i < 1000000; ++i)
-        ; // Simple delay
-    }
-    for (volatile int i = 0; i < 1000000; ++i)
-      ; // Simple delay
-    for (int angle = 45; angle >= -45; angle -= 5)
-    {
-      servo_angle_set(angle);
-      uart2_sendString("angle(deg): ");
-      uart2_send_int32(angle);
-      uart2_sendString("\tservo pulsewidth(us): ");
-      uart2_send_int32(servo_pulse_width);
-      uart2_sendString("\r\n");
-      for (volatile int i = 0; i < 1000000; ++i)
-        ; // Simple delay
-    }
-    for (volatile int i = 0; i < 1000000; ++i)
-      ; // Simple delay
   }
 }
