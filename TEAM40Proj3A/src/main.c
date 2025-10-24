@@ -62,10 +62,15 @@ int servo_pulse_width = 0;
 void TIM2_IRQHandler(void)
 {
   if (TIM2->SR & TIM_SR_UIF)
-  {                                       // Check if the update interrupt flag is set
-    SSD_update(digitSelect, distance, 2); // Update the SSD with the current value of milliSec
-    digitSelect = (digitSelect + 1) % 4;  // Cycle through digitSelect values 0 to 3
-    TIM2->SR &= ~TIM_SR_UIF;              // Clear the update interrupt flag
+  {
+    if (distance > 99.99)
+    {
+      distance = 99.99;
+    }
+    // Check if the update interrupt flag is set
+    SSD_update(digitSelect, distance * 100, 2); // Update the SSD with the current value of milliSec
+    digitSelect = (digitSelect + 1) % 4;        // Cycle through digitSelect values 0 to 3
+    TIM2->SR &= ~TIM_SR_UIF;                    // Clear the update interrupt flag
   }
 }
 
@@ -107,21 +112,14 @@ void SysTick_Handler(void)
     distance = pulse_width / 148.1;
   }
 
-  if (distance > 99.99)
-  {
-    distance = 99.99;
-  }
-
-  distance *= 100;
-
   char str[32];
   if (isCM)
   {
-    sprintf(str, "Dist: %.2f cm\r\n", distance / 100);
+    sprintf(str, "Dist: %.2f cm\r\n", distance);
   }
   else
   {
-    sprintf(str, "Dist: %.2f in\n", distance / 100);
+    sprintf(str, "Dist: %.2f in\n", distance);
   }
   uart2_sendString(str);
 
@@ -221,7 +219,6 @@ int main(void)
   // Configure USART2: 115200 baud, 8N1, enable TX and RX
   USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
   USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
-  uart2_sendString("CPEG222 Project 3 Part 1\r\n");
 
   // Enable GPIOC and TIM3 clocks
   RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
@@ -242,13 +239,12 @@ int main(void)
   TIM3->EGR = TIM_EGR_UG;                   // Generate update event
   TIM3->CR1 |= TIM_CR1_CEN;                 // Enable timer
 
-  uart2_sendString("CPEG222 Standard Servo Demo Program!\r\n");
+  uart2_sendString("CPEG222 Project 3 Part 1\r\n");
   uart2_sendString("Setting angle to 0 degrees.\r\n");
-  int angle = 0;
   servo_angle_set(angle);
   for (volatile int i = 0; i < 10000000UL; ++i)
     ; // long delay to adjust the horn at 90 degrees
-  while (1)
-  {
-  }
+
+  while (true)
+    ;
 }
