@@ -1,9 +1,8 @@
 // ****************************************************************
 // * TEAM 40: W. Tan and M. Becker
-// * CPEG222 Project3 Part B, 10/23/25
+// * CPEG222 Project3 Part B, 10/24/25
 // * NucleoF466RE CMSIS STM32F4xx Sonic Sensor
-// * Display and output distance periodically using sonic sensor
-// * UART, TIM2, TIM5, SysTick
+// * Sonar Sensor + Servo
 // ****************************************************************
 #include "stm32f4xx.h"
 #include "SSD_Array.h"
@@ -239,7 +238,7 @@ int main(void)
   TIM3->EGR = TIM_EGR_UG;                   // Generate update event
   TIM3->CR1 |= TIM_CR1_CEN;                 // Enable timer
 
-  uart2_sendString("CPEG222 Project 3 Part 1\r\n");
+  uart2_sendString("CPEG222 Project 3 Part B\r\n");
   uart2_sendString("Setting angle to 0 degrees.\r\n");
   servo_angle_set(angle);
   for (volatile int i = 0; i < 10000000UL; ++i)
