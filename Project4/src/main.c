@@ -127,10 +127,12 @@ void TIM3_IRQHandler(void)
                 current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
             }
             else
+            {
                 pulse_width = (0xFFFF - last_rising) + last_falling + 1;
-            // Switch back to capture rising edge
-            TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
-            waiting_for_falling = 0;
+                // Switch back to capture rising edge
+                TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
+                waiting_for_falling = 0;
+            }
         }
     }
 }
@@ -169,6 +171,16 @@ void TIM2_IRQHandler(void)
         digitSelect = (digitSelect + 1) % 4;    // Cycle through digitSelect values 0 to 3
         TIM2->SR &= ~TIM_SR_UIF;                // Clear the update interrupt flag
     }
+}
+
+void SysTick_Handler(void)
+{
+    servo_angle_set(offsetDeg + angle);
+    uart2_send_string("angle(deg): ");
+    uart2_send_int32(angle);
+    uart2_send_string("\t  servo pulsewidth(us): ");
+    uart2_send_int32(pulse_width);
+    uart2_send_string("\r\n");
 }
 
 void EXTI15_10_IRQHandler(void)
