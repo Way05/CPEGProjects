@@ -26,6 +26,11 @@
 #define UART_RX_PIN 3
 #define UART_PORT GPIOA
 
+#define ANALOG_PIN 1
+#define ANALOG_PORT GPIOA
+#define ADC_CHANNEL 1  // ADC Channel for PA1
+#define ADC_SAMPLES 16 // Number of samples for averaging
+
 #define POT_PIN 6
 #define POT_PORT GPIOA
 
@@ -43,33 +48,7 @@ volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 bool CW = true;
 bool pause = false;
-
-void EXTI15_10_IRQHandler(void)
-{
-    if (EXTI->PR & (1 << Btn))
-    {                           // checks if button is interrupting
-        EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
-        // if statement below toggles pause and shift direction
-        if (!pause)
-        {
-            pause = true;
-        }
-        else
-        {
-            pause = false;
-            CW = !CW;
-            // this fixes the led moving an extra spot before reversing
-            if (CW)
-            {
-                // somthing=1480
-            }
-            else
-            {
-                // somthing=1520
-            }
-        }
-    }
-}
+float voltage = 0.0;
 
 void PWM_Output_PC6_Init(void)
 {
@@ -151,10 +130,12 @@ void TIM8_IRQHandler(void)
                 current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
             }
             else
+            {
                 pulse_width = (0xFFFF - last_rising) + last_falling + 1;
-            // Switch back to capture rising edge
-            TIM8->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
-            waiting_for_falling = 0;
+                // Switch back to capture rising edge
+                TIM8->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
+                waiting_for_falling = 0;
+            }
         }
     }
 }
@@ -197,6 +178,17 @@ void TIM2_IRQHandler(void)
 
 void SysTick_Handler(void)
 {
+    uint32_t total = 0;
+    for (int i = 0; i < ADC_SAMPLES; i++)
+    {
+        ADC1->CR2 |= ADC_CR2_SWSTART; // Start conversion
+        while (!(ADC1->SR & ADC_SR_EOC))
+            ;              // Wait for conversion to complete
+        total += ADC1->DR; // Read data
+    }
+    uint16_t average = total / ADC_SAMPLES;
+    float voltage = (average / 4095.0) * 3.3; // Convert to voltage
+
     servo_angle_set(offsetDeg + angle);
     uart2_send_string("angle(deg): ");
     uart2_send_int32(angle);
@@ -217,6 +209,16 @@ int main(void)
 
     POT_PORT->MODER &= !(0x3 << (POT_PIN * 2));
     Btn_PORT->MODER &= !(0x3 << (Btn * 2));
+
+    // Set PA1 (ADC) to analog mode
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    ANALOG_PORT->MODER &= ~(0x3 << (ANALOG_PIN * 2));
+    ANALOG_PORT->MODER |= (0x3 << (ANALOG_PIN * 2));
+    // Initialize ADC, Default resolution is 12 bits
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                // Enable ADC1 clock
+    ADC1->SQR3 = ADC_CHANNEL;                          // Select channel
+    ADC1->SMPR2 = ADC_SMPR2_SMP1_0 | ADC_SMPR2_SMP1_1; // Sample time 56 cycles
+    ADC1->CR2 = ADC_CR2_ADON;                          // Enable ADC
 
     // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock to refresh SSD
