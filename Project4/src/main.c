@@ -9,7 +9,9 @@
 
 #include "stm32f4xx.h"
 #include "UART2.h"
+#include "SSD_Array.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #define FREQUENCY 16000000UL // 16 MHz
@@ -19,6 +21,13 @@
 #define SERVO3_PORT (GPIOC)
 #define Btn 13
 #define Btn_PORT GPIOC
+#define BAUDRATE 115200
+#define UART_TX_PIN 2
+#define UART_RX_PIN 3
+#define UART_PORT GPIOA
+
+#define POT_PIN 6
+#define POT_PORT GPIOA
 
 int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
@@ -34,6 +43,33 @@ volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 bool CW = true;
 bool pause = false;
+
+void EXTI15_10_IRQHandler(void)
+{
+    if (EXTI->PR & (1 << Btn))
+    {                           // checks if button is interrupting
+        EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
+        // if statement below toggles pause and shift direction
+        if (!pause)
+        {
+            pause = true;
+        }
+        else
+        {
+            pause = false;
+            CW = !CW;
+            // this fixes the led moving an extra spot before reversing
+            if (CW)
+            {
+                // somthing=1480
+            }
+            else
+            {
+                // somthing=1520
+            }
+        }
+    }
+}
 
 void PWM_Output_PC6_Init(void)
 {
@@ -93,21 +129,21 @@ void PWM_Input_PC7_Init(void)
 }
 
 // TIM3 input capture interrupt handler for PC7 (CH2)
-void TIM3_IRQHandler(void)
+void TIM8_IRQHandler(void)
 {
-    if (TIM3->SR & TIM_SR_CC2IF)
+    if (TIM8->SR & TIM_SR_CC2IF)
     {                              // Check if CC2IF is set
-        TIM3->SR &= ~TIM_SR_CC2IF; // Clear interrupt flag
+        TIM8->SR &= ~TIM_SR_CC2IF; // Clear interrupt flag
         if (!waiting_for_falling)
         {
-            last_rising = TIM3->CCR2;
+            last_rising = TIM8->CCR2;
             // Switch to capture falling edge
-            TIM3->CCER |= TIM_CCER_CC2P; // Set to falling edge
+            TIM8->CCER |= TIM_CCER_CC2P; // Set to falling edge
             waiting_for_falling = 1;
         }
         else
         {
-            last_falling = TIM3->CCR2;
+            last_falling = TIM8->CCR2;
             if (last_falling >= last_rising)
             {
                 if (last_falling - last_rising < 1100)
@@ -117,7 +153,7 @@ void TIM3_IRQHandler(void)
             else
                 pulse_width = (0xFFFF - last_rising) + last_falling + 1;
             // Switch back to capture rising edge
-            TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
+            TIM8->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
             waiting_for_falling = 0;
         }
     }
@@ -159,38 +195,14 @@ void TIM2_IRQHandler(void)
     }
 }
 
-void EXTI15_10_IRQHandler(void)
-{
-    if (EXTI->PR & (1 << Btn))
-    {                           // checks if button is interrupting
-        EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
-        pause = !pause;
-        if (pause)
-        {
-            CW = !CW;
-        }
-    }
-}
-
 void SysTick_Handler(void)
 {
-    if (!pause)
-    {
-        if (CW)
-        {
-            angle += 5;
-        }
-        else
-        {
-            angle -= 5;
-        }
-        servo_angle_set(offsetDeg + angle);
-        uart2_send_string("angle(deg): ");
-        uart2_send_int32(angle);
-        uart2_send_string("\t  servo pulsewidth(us): ");
-        uart2_send_int32(pulse_width);
-        uart2_send_string("\r\n");
-    }
+    servo_angle_set(offsetDeg + angle);
+    uart2_send_string("angle(deg): ");
+    uart2_send_int32(angle);
+    uart2_send_string("\t  servo pulsewidth(us): ");
+    uart2_send_int32(pulse_width);
+    uart2_send_string("\r\n");
 }
 
 int main(void)
@@ -199,8 +211,14 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     UART2_Init();
-    SSD_init();                         // Initialize SSD
-                                        // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
+    SSD_init(); // Initialize SSD
+
+    SysTick_Config(FREQUENCY); // Configure SysTick for 500 millisecond interrupts
+
+    POT_PORT->MODER &= !(0x3 << (POT_PIN * 2));
+    Btn_PORT->MODER &= !(0x3 << (Btn * 2));
+
+    // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock to refresh SSD
     TIM2->PSC = 15;                     // Prescaler: (16MHz/16 = 1MHz, 1usec period)
     TIM2->ARR = 499;                    // Auto-reload: 500us (0.5ms period)
@@ -217,6 +235,16 @@ int main(void)
     SYSCFG->EXTICR[3] |= (2 << (1 * 4));    // maps ExTI to PC13 button
     NVIC_SetPriority(EXTI15_10_IRQn, 0);    // sets priority of the button interrupt to most important
     NVIC_EnableIRQ(EXTI15_10_IRQn);         // enables EXTI line interrupt in NVIC
+
+    // enable uart
+    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+    // Set PA2 (TX) and PA3 (RX) to alternate function
+    GPIOA->MODER &= ~((3 << (UART_TX_PIN * 2)) | (3 << (UART_RX_PIN * 2))); // Clear mode bits
+    GPIOA->MODER |= (2 << (UART_TX_PIN * 2)) | (2 << (UART_RX_PIN * 2));    // AF mode
+    GPIOA->AFR[0] |= (7 << (UART_TX_PIN * 4)) | (7 << (UART_RX_PIN * 4));   // AF7 for USART2
+    // Configure USART2: 115200 baud, 8N1, enable TX and RX
+    USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
+    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
 
     PWM_Output_PC6_Init();
     PWM_Input_PC7_Init();
