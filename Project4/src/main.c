@@ -10,12 +10,20 @@
 #include "stm32f4xx.h"
 #include "UART2.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 #define FREQUENCY 16000000UL // 16 MHz
 #define ENCODER_PIN (7)      // Assuming servo motor encoder is connected to GPIOC pin 7
 #define ENCODER_PORT (GPIOC)
 #define SERVO3_PIN (6) // Assuming servo motor 3 control pin is connected to GPIOC pin 6
 #define SERVO3_PORT (GPIOC)
+
+#define BTN_PIN 13
+
+#define UART_TX_PIN 2
+#define UART_RX_PIN 3
+#define UART_PORT GPIOA
+#define BAUDRATE 115200
 
 int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
@@ -121,7 +129,7 @@ void TIM3_IRQHandler(void)
 void servo_angle_set(int angle)
 {
     while (abs(current_angle - angle) > 3)
-    {   // Within ±2° is "close enough"
+    { // Within ±2° is "close enough"
         // while(current_angle!=angle) {
         //  uart2_send_string("set angle: ");
         //  uart2_send_int32(angle-offsetDeg);
@@ -156,17 +164,39 @@ void TIM2_IRQHandler(void)
 
 int main(void)
 {
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
     UART2_Init();
-    SSD_init();                         // Initialize SSD
-                                        // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
-    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock to refresh SSD
-    TIM2->PSC = 15;                     // Prescaler: (16MHz/16 = 1MHz, 1usec period)
-    TIM2->ARR = 499;                    // Auto-reload: 500us (0.5ms period)
-    TIM2->DIER |= TIM_DIER_UIE;         // Enable update interrupt
-    TIM2->SR &= ~TIM_SR_UIF;            // Clear any pending interrupt
-    NVIC_EnableIRQ(TIM2_IRQn);          // Enable TIM2 interrupt in NVIC
-    NVIC_SetPriority(TIM2_IRQn, 2);     // Set priority for TIM2
-    TIM2->CR1 = TIM_CR1_CEN;            // Enable TIM2
+    SSD_init(); // Initialize SSD
+    SysTick_Config(FREQUENCY);
+
+    // button setup
+    EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
+    EXTI->FTSR |= (1 << BTN_PIN);           // button triggers on falling edge
+    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    SYSCFG->EXTICR[3] |= (2 << (1 * 4));    // maps ExTI to PC13 button
+    NVIC_SetPriority(EXTI15_10_IRQn, 0);    // sets priority of the button interrupt to most important
+    NVIC_EnableIRQ(EXTI15_10_IRQn);         // enables EXTI line interrupt in NVIC
+                                            // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;     // Enable TIM2 clock to refresh SSD
+    TIM2->PSC = 15;                         // Prescaler: (16MHz/16 = 1MHz, 1usec period)
+    TIM2->ARR = 499;                        // Auto-reload: 500us (0.5ms period)
+    TIM2->DIER |= TIM_DIER_UIE;             // Enable update interrupt
+    TIM2->SR &= ~TIM_SR_UIF;                // Clear any pending interrupt
+    NVIC_EnableIRQ(TIM2_IRQn);              // Enable TIM2 interrupt in NVIC
+    NVIC_SetPriority(TIM2_IRQn, 2);         // Set priority for TIM2
+    TIM2->CR1 = TIM_CR1_CEN;                // Enable TIM2
+
+    // enable uart
+    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
+    // Set PA2 (TX) and PA3 (RX) to alternate function
+    GPIOA->MODER &= ~((3 << (UART_TX_PIN * 2)) | (3 << (UART_RX_PIN * 2))); // Clear mode bits
+    GPIOA->MODER |= (2 << (UART_TX_PIN * 2)) | (2 << (UART_RX_PIN * 2));    // AF mode
+    GPIOA->AFR[0] |= (7 << (UART_TX_PIN * 4)) | (7 << (UART_RX_PIN * 4));   // AF7 for USART2
+    // Configure USART2: 115200 baud, 8N1, enable TX and RX
+    USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
+    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
 
     PWM_Output_PC6_Init();
     PWM_Input_PC7_Init();
