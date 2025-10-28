@@ -9,9 +9,6 @@
 
 #include "stm32f4xx.h"
 #include "UART2.h"
-#include "SSD_Array.h"
-#include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
 
 #define FREQUENCY 16000000UL // 16 MHz
@@ -19,20 +16,6 @@
 #define ENCODER_PORT (GPIOC)
 #define SERVO3_PIN (6) // Assuming servo motor 3 control pin is connected to GPIOC pin 6
 #define SERVO3_PORT (GPIOC)
-#define Btn 13
-#define Btn_PORT GPIOC
-#define BAUDRATE 115200
-#define UART_TX_PIN 2
-#define UART_RX_PIN 3
-#define UART_PORT GPIOA
-
-#define ANALOG_PIN 1
-#define ANALOG_PORT GPIOA
-#define ADC_CHANNEL 1  // ADC Channel for PA1
-#define ADC_SAMPLES 16 // Number of samples for averaging
-
-#define POT_PIN 6
-#define POT_PORT GPIOA
 
 int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
@@ -46,9 +29,6 @@ volatile uint32_t last_falling = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
-bool CW = true;
-bool pause = false;
-float voltage = 0.0;
 
 void PWM_Output_PC6_Init(void)
 {
@@ -108,21 +88,21 @@ void PWM_Input_PC7_Init(void)
 }
 
 // TIM3 input capture interrupt handler for PC7 (CH2)
-void TIM8_IRQHandler(void)
+void TIM3_IRQHandler(void)
 {
-    if (TIM8->SR & TIM_SR_CC2IF)
+    if (TIM3->SR & TIM_SR_CC2IF)
     {                              // Check if CC2IF is set
-        TIM8->SR &= ~TIM_SR_CC2IF; // Clear interrupt flag
+        TIM3->SR &= ~TIM_SR_CC2IF; // Clear interrupt flag
         if (!waiting_for_falling)
         {
-            last_rising = TIM8->CCR2;
+            last_rising = TIM3->CCR2;
             // Switch to capture falling edge
-            TIM8->CCER |= TIM_CCER_CC2P; // Set to falling edge
+            TIM3->CCER |= TIM_CCER_CC2P; // Set to falling edge
             waiting_for_falling = 1;
         }
         else
         {
-            last_falling = TIM8->CCR2;
+            last_falling = TIM3->CCR2;
             if (last_falling >= last_rising)
             {
                 if (last_falling - last_rising < 1100)
@@ -130,12 +110,10 @@ void TIM8_IRQHandler(void)
                 current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
             }
             else
-            {
                 pulse_width = (0xFFFF - last_rising) + last_falling + 1;
-                // Switch back to capture rising edge
-                TIM8->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
-                waiting_for_falling = 0;
-            }
+            // Switch back to capture rising edge
+            TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
+            waiting_for_falling = 0;
         }
     }
 }
@@ -143,7 +121,7 @@ void TIM8_IRQHandler(void)
 void servo_angle_set(int angle)
 {
     while (abs(current_angle - angle) > 3)
-    { // Within ±2° is "close enough"
+    {   // Within ±2° is "close enough"
         // while(current_angle!=angle) {
         //  uart2_send_string("set angle: ");
         //  uart2_send_int32(angle-offsetDeg);
@@ -176,51 +154,11 @@ void TIM2_IRQHandler(void)
     }
 }
 
-void SysTick_Handler(void)
-{
-    uint32_t total = 0;
-    for (int i = 0; i < ADC_SAMPLES; i++)
-    {
-        ADC1->CR2 |= ADC_CR2_SWSTART; // Start conversion
-        while (!(ADC1->SR & ADC_SR_EOC))
-            ;              // Wait for conversion to complete
-        total += ADC1->DR; // Read data
-    }
-    uint16_t average = total / ADC_SAMPLES;
-    float voltage = (average / 4095.0) * 3.3; // Convert to voltage
-
-    servo_angle_set(offsetDeg + angle);
-    uart2_send_string("angle(deg): ");
-    uart2_send_int32(angle);
-    uart2_send_string("\t  servo pulsewidth(us): ");
-    uart2_send_int32(pulse_width);
-    uart2_send_string("\r\n");
-}
-
 int main(void)
 {
-    RCC->APB1ENR |= RCC_AHB1ENR_GPIOCEN;
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-
     UART2_Init();
-    SSD_init(); // Initialize SSD
-
-    SysTick_Config(FREQUENCY); // Configure SysTick for 500 millisecond interrupts
-
-    POT_PORT->MODER &= !(0x3 << (POT_PIN * 2));
-    Btn_PORT->MODER &= !(0x3 << (Btn * 2));
-
-    // Set PA1 (ADC) to analog mode
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
-    ANALOG_PORT->MODER &= ~(0x3 << (ANALOG_PIN * 2));
-    ANALOG_PORT->MODER |= (0x3 << (ANALOG_PIN * 2));
-    // Initialize ADC, Default resolution is 12 bits
-    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                // Enable ADC1 clock
-    ADC1->SQR3 = ADC_CHANNEL;                          // Select channel
-    ADC1->SMPR2 = ADC_SMPR2_SMP1_0 | ADC_SMPR2_SMP1_1; // Sample time 56 cycles
-    ADC1->CR2 = ADC_CR2_ADON;                          // Enable ADC
-
-    // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
+    SSD_init();                         // Initialize SSD
+                                        // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
     RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock to refresh SSD
     TIM2->PSC = 15;                     // Prescaler: (16MHz/16 = 1MHz, 1usec period)
     TIM2->ARR = 499;                    // Auto-reload: 500us (0.5ms period)
@@ -229,24 +167,6 @@ int main(void)
     NVIC_EnableIRQ(TIM2_IRQn);          // Enable TIM2 interrupt in NVIC
     NVIC_SetPriority(TIM2_IRQn, 2);     // Set priority for TIM2
     TIM2->CR1 = TIM_CR1_CEN;            // Enable TIM2
-
-    // button setup
-    EXTI->IMR |= (1 << Btn);                // unmasks EXTI so it can be used
-    EXTI->FTSR |= (1 << Btn);               // button triggers on falling edge
-    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
-    SYSCFG->EXTICR[3] |= (2 << (1 * 4));    // maps ExTI to PC13 button
-    NVIC_SetPriority(EXTI15_10_IRQn, 0);    // sets priority of the button interrupt to most important
-    NVIC_EnableIRQ(EXTI15_10_IRQn);         // enables EXTI line interrupt in NVIC
-
-    // enable uart
-    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-    // Set PA2 (TX) and PA3 (RX) to alternate function
-    GPIOA->MODER &= ~((3 << (UART_TX_PIN * 2)) | (3 << (UART_RX_PIN * 2))); // Clear mode bits
-    GPIOA->MODER |= (2 << (UART_TX_PIN * 2)) | (2 << (UART_RX_PIN * 2));    // AF mode
-    GPIOA->AFR[0] |= (7 << (UART_TX_PIN * 4)) | (7 << (UART_RX_PIN * 4));   // AF7 for USART2
-    // Configure USART2: 115200 baud, 8N1, enable TX and RX
-    USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
-    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
 
     PWM_Output_PC6_Init();
     PWM_Input_PC7_Init();
@@ -258,5 +178,31 @@ int main(void)
         ; // Simple delay
     while (1)
     {
+        for (angle = -60; angle <= 60; angle += 10)
+        {
+            servo_angle_set(offsetDeg + angle);
+            uart2_send_string("angle(deg): ");
+            uart2_send_int32(angle);
+            uart2_send_string("\t  servo pulsewidth(us): ");
+            uart2_send_int32(pulse_width);
+            uart2_send_string("\r\n");
+        }
+        angle = 60;
+        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
+        for (volatile int i = 0; i < 1000000; ++i)
+            ; // Simple delay
+        for (angle = 60; angle >= -60; angle -= 10)
+        {
+            servo_angle_set(offsetDeg + angle);
+            uart2_send_string("angle(deg): ");
+            uart2_send_int32(angle);
+            uart2_send_string("\t  servo pulsewidth(us): ");
+            uart2_send_int32(pulse_width);
+            uart2_send_string("\r\n");
+        }
+        angle = -60;
+        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
+        for (volatile int i = 0; i < 1000000; ++i)
+            ; // Simple delay
     }
 }
