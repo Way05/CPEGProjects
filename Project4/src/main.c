@@ -38,6 +38,9 @@ volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 
+bool pause = false;
+bool cw = true;
+
 void PWM_Output_PC6_Init(void)
 {
     // Enable GPIOC and TIM8 clocks
@@ -159,6 +162,19 @@ void TIM2_IRQHandler(void)
         SSD_update(digitSelect, angle + 60, 0); // Update the SSD with the current distance showing hundredths
         digitSelect = (digitSelect + 1) % 4;    // Cycle through digitSelect values 0 to 3
         TIM2->SR &= ~TIM_SR_UIF;                // Clear the update interrupt flag
+    }
+}
+
+void EXTI15_10_IRQHandler(void)
+{
+    if (EXTI->PR & (1 << BTN_PIN))
+    {                               // checks if button is interrupting
+        EXTI->PR |= (1 << BTN_PIN); // clear interrupt so it can check again
+        pause = !pause;
+        if (pause)
+        {
+            cw = !cw;
+        }
     }
 }
 
