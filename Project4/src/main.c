@@ -11,6 +11,7 @@
 #include "UART2.h"
 #include <stdio.h>
 #include <stdbool.h>
+#include "SSD_Array.h"
 
 #define FREQUENCY 16000000UL // 16 MHz
 #define ENCODER_PIN (7)      // Assuming servo motor encoder is connected to GPIOC pin 7
@@ -24,6 +25,11 @@
 #define UART_RX_PIN 3
 #define UART_PORT GPIOA
 #define BAUDRATE 115200
+
+#define ANALOG_PIN 1
+#define ANALOG_PORT GPIOA
+#define ADC_CHANNEL 1 // ADC Channel for PA1
+#define ADC_SAMPLES 16 // Number of samples for averaging
 
 int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
@@ -186,6 +192,16 @@ int main(void)
     UART2_Init();
     SSD_init(); // Initialize SSD
     SysTick_Config(FREQUENCY);
+
+    // Set PA1 (ADC) to analog mode
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    ANALOG_PORT->MODER &= ~(0x3 << (ANALOG_PIN * 2));
+    ANALOG_PORT->MODER |= (0x3 << (ANALOG_PIN * 2));
+    // Initialize ADC, Default resolution is 12 bits
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; // Enable ADC1 clock
+    ADC1->SQR3 = ADC_CHANNEL; // Select channel
+    ADC1->SMPR2 = ADC_SMPR2_SMP1_0 | ADC_SMPR2_SMP1_1; // Sample time 56 cycles
+    ADC1->CR2 = ADC_CR2_ADON; // Enable ADC
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
