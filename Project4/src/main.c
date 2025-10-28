@@ -9,6 +9,7 @@
 
 #include "stm32f4xx.h"
 #include "UART2.h"
+#include <stdbool.h>
 #include <stdio.h>
 
 #define FREQUENCY 16000000UL // 16 MHz
@@ -16,6 +17,8 @@
 #define ENCODER_PORT (GPIOC)
 #define SERVO3_PIN (6) // Assuming servo motor 3 control pin is connected to GPIOC pin 6
 #define SERVO3_PORT (GPIOC)
+#define Btn 13
+#define Btn_PORT GPIOC
 
 int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
@@ -29,6 +32,8 @@ volatile uint32_t last_falling = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
+bool CW = true;
+bool pause = false;
 
 void PWM_Output_PC6_Init(void)
 {
@@ -121,7 +126,7 @@ void TIM3_IRQHandler(void)
 void servo_angle_set(int angle)
 {
     while (abs(current_angle - angle) > 3)
-    {   // Within ±2° is "close enough"
+    { // Within ±2° is "close enough"
         // while(current_angle!=angle) {
         //  uart2_send_string("set angle: ");
         //  uart2_send_int32(angle-offsetDeg);
@@ -154,8 +159,45 @@ void TIM2_IRQHandler(void)
     }
 }
 
+void EXTI15_10_IRQHandler(void)
+{
+    if (EXTI->PR & (1 << Btn))
+    {                           // checks if button is interrupting
+        EXTI->PR |= (1 << Btn); // clear interrupt so it can check again
+        pause = !pause;
+        if (pause)
+        {
+            CW = !CW;
+        }
+    }
+}
+
+void SysTick_Handler(void)
+{
+    if (!pause)
+    {
+        if (CW)
+        {
+            angle += 5;
+        }
+        else
+        {
+            angle -= 5;
+        }
+        servo_angle_set(offsetDeg + angle);
+        uart2_send_string("angle(deg): ");
+        uart2_send_int32(angle);
+        uart2_send_string("\t  servo pulsewidth(us): ");
+        uart2_send_int32(pulse_width);
+        uart2_send_string("\r\n");
+    }
+}
+
 int main(void)
 {
+    RCC->APB1ENR |= RCC_AHB1ENR_GPIOCEN;
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
     UART2_Init();
     SSD_init();                         // Initialize SSD
                                         // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
@@ -168,6 +210,14 @@ int main(void)
     NVIC_SetPriority(TIM2_IRQn, 2);     // Set priority for TIM2
     TIM2->CR1 = TIM_CR1_CEN;            // Enable TIM2
 
+    // button setup
+    EXTI->IMR |= (1 << Btn);                // unmasks EXTI so it can be used
+    EXTI->FTSR |= (1 << Btn);               // button triggers on falling edge
+    SYSCFG->EXTICR[3] &= ~(0xF << (1 * 4)); // clears EXTI bits
+    SYSCFG->EXTICR[3] |= (2 << (1 * 4));    // maps ExTI to PC13 button
+    NVIC_SetPriority(EXTI15_10_IRQn, 0);    // sets priority of the button interrupt to most important
+    NVIC_EnableIRQ(EXTI15_10_IRQn);         // enables EXTI line interrupt in NVIC
+
     PWM_Output_PC6_Init();
     PWM_Input_PC7_Init();
     uart2_send_string("CPEG222 Continuous Servo Demo Program!\r\n");
@@ -178,31 +228,5 @@ int main(void)
         ; // Simple delay
     while (1)
     {
-        for (angle = -60; angle <= 60; angle += 10)
-        {
-            servo_angle_set(offsetDeg + angle);
-            uart2_send_string("angle(deg): ");
-            uart2_send_int32(angle);
-            uart2_send_string("\t  servo pulsewidth(us): ");
-            uart2_send_int32(pulse_width);
-            uart2_send_string("\r\n");
-        }
-        angle = 60;
-        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
-        for (volatile int i = 0; i < 1000000; ++i)
-            ; // Simple delay
-        for (angle = 60; angle >= -60; angle -= 10)
-        {
-            servo_angle_set(offsetDeg + angle);
-            uart2_send_string("angle(deg): ");
-            uart2_send_int32(angle);
-            uart2_send_string("\t  servo pulsewidth(us): ");
-            uart2_send_int32(pulse_width);
-            uart2_send_string("\r\n");
-        }
-        angle = -60;
-        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
-        for (volatile int i = 0; i < 1000000; ++i)
-            ; // Simple delay
     }
 }
