@@ -26,9 +26,10 @@
 #define UART_PORT GPIOA
 #define BAUDRATE 115200
 
+// port and pin for potentiometer
 #define ANALOG_PIN 1
 #define ANALOG_PORT GPIOA
-#define ADC_CHANNEL 1 // ADC Channel for PA1
+#define ADC_CHANNEL 1  // ADC Channel for PA1
 #define ADC_SAMPLES 16 // Number of samples for averaging
 
 int offsetDeg = 235;        // this will depend on your setup
@@ -137,30 +138,9 @@ void TIM3_IRQHandler(void)
     }
 }
 
-void servo_angle_set(int angle)
+void servo_angle_set(int pwm)
 {
-    while (abs(current_angle - angle) > 3)
-    { // Within ±2° is "close enough"
-        // while(current_angle!=angle) {
-        //  uart2_send_string("set angle: ");
-        //  uart2_send_int32(angle-offsetDeg);
-        //  uart2_send_string("\tpulsewidth: ");
-        //  uart2_send_int32(pulse_width);
-        //  uart2_send_string("\tangle(deg): ");
-        //  uart2_send_int32(current_angle-offsetDeg);
-        //  uart2_send_string("\r\n");
-        if (current_angle > angle)
-        {
-            TIM8->CCR1 = ccw_pulse_width; // Duty cycle (1.475 ms pulse width)
-        }
-        else
-        {
-            TIM8->CCR1 = cw_pulse_width; // Duty cycle (1.475 ms pulse width)
-        }
-    }
-    TIM8->CCR1 = 1500;
-    for (volatile int i = 0; i < 500000; ++i)
-        ; // Simple delay 300000
+    TIM8->CCR1 = pwm;
 }
 
 void TIM2_IRQHandler(void)
@@ -175,12 +155,30 @@ void TIM2_IRQHandler(void)
 
 void SysTick_Handler(void)
 {
-    servo_angle_set(offsetDeg + angle);
+
+    uint32_t total = 0;
+    for (int i = 0; i < ADC_SAMPLES; i++)
+    {
+        ADC1->CR2 |= ADC_CR2_SWSTART; // Start conversion
+        while (!(ADC1->SR & ADC_SR_EOC))
+            ;              // Wait for conversion to complete
+        total += ADC1->DR; // Read data
+    }
+    uint16_t average = total / ADC_SAMPLES;
+    float voltage = (average / 4095.0) * 3.3; // Convert to voltage
+
+    if (pause)
+    {
+        pulse_width = 1500;
+    }
+
     uart2_send_string("angle(deg): ");
     uart2_send_int32(angle);
     uart2_send_string("\t  servo pulsewidth(us): ");
     uart2_send_int32(pulse_width);
     uart2_send_string("\r\n");
+
+    servo_angle_set(pulse_width);
 }
 
 void EXTI15_10_IRQHandler(void)
@@ -210,10 +208,10 @@ int main(void)
     ANALOG_PORT->MODER &= ~(0x3 << (ANALOG_PIN * 2));
     ANALOG_PORT->MODER |= (0x3 << (ANALOG_PIN * 2));
     // Initialize ADC, Default resolution is 12 bits
-    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; // Enable ADC1 clock
-    ADC1->SQR3 = ADC_CHANNEL; // Select channel
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;                // Enable ADC1 clock
+    ADC1->SQR3 = ADC_CHANNEL;                          // Select channel
     ADC1->SMPR2 = ADC_SMPR2_SMP1_0 | ADC_SMPR2_SMP1_1; // Sample time 56 cycles
-    ADC1->CR2 = ADC_CR2_ADON; // Enable ADC
+    ADC1->CR2 = ADC_CR2_ADON;                          // Enable ADC
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
@@ -252,31 +250,5 @@ int main(void)
         ; // Simple delay
     while (1)
     {
-        for (angle = -60; angle <= 60; angle += 10)
-        {
-            servo_angle_set(offsetDeg + angle);
-            uart2_send_string("angle(deg): ");
-            uart2_send_int32(angle);
-            uart2_send_string("\t  servo pulsewidth(us): ");
-            uart2_send_int32(pulse_width);
-            uart2_send_string("\r\n");
-        }
-        angle = 60;
-        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
-        for (volatile int i = 0; i < 1000000; ++i)
-            ; // Simple delay
-        for (angle = 60; angle >= -60; angle -= 10)
-        {
-            servo_angle_set(offsetDeg + angle);
-            uart2_send_string("angle(deg): ");
-            uart2_send_int32(angle);
-            uart2_send_string("\t  servo pulsewidth(us): ");
-            uart2_send_int32(pulse_width);
-            uart2_send_string("\r\n");
-        }
-        angle = -60;
-        TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
-        for (volatile int i = 0; i < 1000000; ++i)
-            ; // Simple delay
     }
 }
