@@ -39,14 +39,20 @@ int angle = 0;
 int cw_pulse_width = 1400;  // 1450 for slower movement;
 int ccw_pulse_width = 1600; // 1550 for slower movement;
 volatile int current_angle = 0;
+volatile int last_angle = 0;
 volatile uint32_t last_rising = 0;
+// volatile uint32_t before_falling = 0; //initial  falling edge
 volatile uint32_t last_falling = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 
-bool pause = false;
-bool cw = true;
+volatile float voltage = 0;
+volatile bool pause = false;
+volatile bool cw = true;
+volatile int total = 0;
+volatile float rpm = 0;
+volatile int total_angle = 0;
 
 void PWM_Output_PC6_Init(void)
 {
@@ -124,8 +130,19 @@ void TIM3_IRQHandler(void)
             if (last_falling >= last_rising)
             {
                 if (last_falling - last_rising < 1100)
+                {
                     pulse_width = last_falling - last_rising;
-                current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
+                    current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
+
+                    if (cw)
+                    {
+                        total_angle += current_angle - last_angle;
+                    }
+                    else
+                    {
+                        total_angle -= last_angle - current_angle;
+                    }
+                }
             }
             else
             {
@@ -146,10 +163,10 @@ void servo_angle_set(int pwm)
 void TIM2_IRQHandler(void)
 { // TIM2 interrupt handler for SSD refresh
     if (TIM2->SR & TIM_SR_UIF)
-    {                                           // Check if the update interrupt flag is set
-        SSD_update(digitSelect, angle + 60, 0); // Update the SSD with the current distance showing hundredths
-        digitSelect = (digitSelect + 1) % 4;    // Cycle through digitSelect values 0 to 3
-        TIM2->SR &= ~TIM_SR_UIF;                // Clear the update interrupt flag
+    {                                        // Check if the update interrupt flag is set
+        SSD_update(digitSelect, rpm, 3);     // Update the SSD with the current distance showing hundredths
+        digitSelect = (digitSelect + 1) % 4; // Cycle through digitSelect values 0 to 3
+        TIM2->SR &= ~TIM_SR_UIF;             // Clear the update interrupt flag
     }
 }
 
@@ -165,17 +182,50 @@ void SysTick_Handler(void)
         total += ADC1->DR; // Read data
     }
     uint16_t average = total / ADC_SAMPLES;
-    float voltage = (average / 4095.0) * 3.3; // Convert to voltage
+    voltage = (average / 4095.0) * 3.3; // Convert to voltage
 
     if (pause)
     {
-        pulse_width = 1500;
+        pulse_width = 1500; // Center/stop position
+    }
+    else
+    {
+        if (cw)
+        {
+            // Map voltage (0-3.3V) to CW range (1480-1280)
+            pulse_width = 1480 - (voltage * 200.0 / 3.3);
+        }
+        else
+        {
+            // Map voltage (0-3.3V) to CCW range (1520-1720)
+            pulse_width = 1520 + (voltage * 200.0 / 3.3);
+        }
     }
 
-    uart2_send_string("angle(deg): ");
-    uart2_send_int32(angle);
+    // Calculate angle change
+    // Calculate RPM from accumulated angle change
+    // SysTick is configured with FREQUENCY (16MHz), so it triggers every 1 second
+    rpm = (total_angle * 60) / 360; // Convert degrees/sec to rotations/minute
+
+    // Reset total_angle for next measurement
+    total_angle = 0;
+    last_angle = current_angle;
+
+    uart2_send_string("ADC: ");
+    uart2_send_int32(voltage);
+    uart2_send_string("\t  dir: ");
+    if (cw)
+    {
+        uart2_send_string(" cw");
+    }
+    else
+    {
+        uart2_send_string(" ccw");
+    }
     uart2_send_string("\t  servo pulsewidth(us): ");
     uart2_send_int32(pulse_width);
+    uart2_send_string("\t  rpm: ");
+    uart2_send_int32(rpm);
     uart2_send_string("\r\n");
 
     servo_angle_set(pulse_width);
@@ -187,7 +237,7 @@ void EXTI15_10_IRQHandler(void)
     {                               // checks if button is interrupting
         EXTI->PR |= (1 << BTN_PIN); // clear interrupt so it can check again
         pause = !pause;
-        if (pause)
+        if (!pause)
         {
             cw = !cw;
         }
@@ -220,15 +270,16 @@ int main(void)
     SYSCFG->EXTICR[3] |= (2 << (1 * 4));    // maps ExTI to PC13 button
     NVIC_SetPriority(EXTI15_10_IRQn, 0);    // sets priority of the button interrupt to most important
     NVIC_EnableIRQ(EXTI15_10_IRQn);         // enables EXTI line interrupt in NVIC
-                                            // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
-    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;     // Enable TIM2 clock to refresh SSD
-    TIM2->PSC = 15;                         // Prescaler: (16MHz/16 = 1MHz, 1usec period)
-    TIM2->ARR = 499;                        // Auto-reload: 500us (0.5ms period)
-    TIM2->DIER |= TIM_DIER_UIE;             // Enable update interrupt
-    TIM2->SR &= ~TIM_SR_UIF;                // Clear any pending interrupt
-    NVIC_EnableIRQ(TIM2_IRQn);              // Enable TIM2 interrupt in NVIC
-    NVIC_SetPriority(TIM2_IRQn, 2);         // Set priority for TIM2
-    TIM2->CR1 = TIM_CR1_CEN;                // Enable TIM2
+
+    // Configure TIM2 for 0.5ms interrupt (assuming 16MHz HSI clock)
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; // Enable TIM2 clock to refresh SSD
+    TIM2->PSC = 15;                     // Prescaler: (16MHz/16 = 1MHz, 1usec period)
+    TIM2->ARR = 499;                    // Auto-reload: 500us (0.5ms period)
+    TIM2->DIER |= TIM_DIER_UIE;         // Enable update interrupt
+    TIM2->SR &= ~TIM_SR_UIF;            // Clear any pending interrupt
+    NVIC_EnableIRQ(TIM2_IRQn);          // Enable TIM2 interrupt in NVIC
+    NVIC_SetPriority(TIM2_IRQn, 2);     // Set priority for TIM2
+    TIM2->CR1 = TIM_CR1_CEN;            // Enable TIM2
 
     // enable uart
     RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
@@ -244,10 +295,7 @@ int main(void)
     PWM_Input_PC7_Init();
     uart2_send_string("CPEG222 Continuous Servo Demo Program!\r\n");
     uart2_send_string("Setting angle to 0 degrees.\r\n");
-    servo_angle_set(offsetDeg);
-    TIM8->CCR1 = 1500; // Duty cycle (1.5 ms pulse width to stop movement)
-    for (volatile int i = 0; i < 1000000UL; ++i)
-        ; // Simple delay
+
     while (1)
     {
     }
