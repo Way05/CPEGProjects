@@ -112,6 +112,7 @@ void PWM_Input_PC7_Init(void)
 }
 
 // TIM3 input capture interrupt handler for PC7 (CH2)
+volatile int count = 0;
 void TIM3_IRQHandler(void)
 {
     if (TIM3->SR & TIM_SR_CC2IF)
@@ -132,6 +133,7 @@ void TIM3_IRQHandler(void)
                 if (last_falling - last_rising < 1100)
                 {
                     pulse_width = last_falling - last_rising;
+                    last_angle = current_angle;
                     current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
 
                     if (cw)
@@ -140,7 +142,7 @@ void TIM3_IRQHandler(void)
                     }
                     else
                     {
-                        total_angle -= last_angle - current_angle;
+                        total_angle += last_angle - current_angle;
                     }
                 }
             }
@@ -184,32 +186,34 @@ void SysTick_Handler(void)
     uint16_t average = total / ADC_SAMPLES;
     voltage = (average / 4095.0) * 3.3; // Convert to voltage
 
+    volatile int servo_width;
+
     if (pause)
     {
-        pulse_width = 1500; // Center/stop position
+        servo_width = 1500; // Center/stop position
     }
     else
     {
         if (cw)
         {
             // Map voltage (0-3.3V) to CW range (1480-1280)
-            pulse_width = 1480 - (voltage * 200.0 / 3.3);
+            servo_width = 1480 - (voltage * 200.0 / 3.3);
         }
         else
         {
             // Map voltage (0-3.3V) to CCW range (1520-1720)
-            pulse_width = 1520 + (voltage * 200.0 / 3.3);
+            servo_width = 1520 + (voltage * 200.0 / 3.3);
         }
     }
 
     // Calculate angle change
     // Calculate RPM from accumulated angle change
     // SysTick is configured with FREQUENCY (16MHz), so it triggers every 1 second
+
     rpm = (total_angle * 60) / 360; // Convert degrees/sec to rotations/minute
 
     // Reset total_angle for next measurement
-    total_angle = 0;
-    last_angle = current_angle;
+    // total_angle = 0;
 
     uart2_send_string("ADC: ");
     uart2_send_int32(voltage);
@@ -223,12 +227,12 @@ void SysTick_Handler(void)
         uart2_send_string(" ccw");
     }
     uart2_send_string("\t  servo pulsewidth(us): ");
-    uart2_send_int32(pulse_width);
+    uart2_send_int32(servo_width);
     uart2_send_string("\t  rpm: ");
     uart2_send_int32(rpm);
     uart2_send_string("\r\n");
 
-    servo_angle_set(pulse_width);
+    servo_angle_set(servo_width);
 }
 
 void EXTI15_10_IRQHandler(void)
