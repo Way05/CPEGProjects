@@ -153,7 +153,15 @@ void TIM3_IRQHandler(void)
                     current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
 
                     // Calculate angle change with wraparound handling
-                    int angle_change = current_angle - prev_angle;
+                    int angle_change;
+                    if (cw)
+                    {
+                        angle_change = current_angle - prev_angle;
+                    }
+                    else
+                    {
+                        angle_change = prev_angle - current_angle;
+                    }
 
                     // Handle wraparound cases
                     if (angle_change > 180)
