@@ -134,7 +134,7 @@ void TIM3_IRQHandler(void)
 
                     //---
                     count++;
-                    if (count > 1000000)
+                    if (count > 1000000 / 4)
                     {
                         count = 0;
                         total_angle = 0;
