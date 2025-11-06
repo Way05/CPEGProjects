@@ -1,10 +1,9 @@
 // ****************************************************************
-// * TEAM50: T. LUM and R. MARTIN
-// * CPEG222 cont_servo_main, 10/6/25
-// * NucleoF466RE CMSIS STM32F4xx example
-// * Move the continuous rotation servo using PWM on PC6
-// * Read the servo position using input capture on PC7
-// * Send angle and pulse width data over UART2
+// * TEAM40: Tan. Wei-en and Becker, Mia
+// * CPEG222 Project 4A
+// * NucleoF466RE CMSIS STM32F4xx
+// * Single wheel potentiometer RPM control
+// * Print data to uart
 // ****************************************************************
 
 #include "stm32f4xx.h"
@@ -132,20 +131,17 @@ void TIM3_IRQHandler(void)
                 if (last_falling - last_rising < 1100)
                 {
                     pulse_width = last_falling - last_rising;
-                    // Do NOT compute current_angle here — we need the previous
-                    // angle value (prev_angle) before updating current_angle so
-                    // angle_change is calculated correctly below.
-                }
-                //---
-                count++;
-                if (count > 1000000)
-                {
-                    count = 0;
-                    total_angle = 0;
-                }
-                if (pulse_width >= min_pulse_width && pulse_width <= max_pulse_width &&
-                    !pause && voltage > 0.1)
-                {
+
+                    //---
+                    count++;
+                    if (count > 1000000)
+                    {
+                        count = 0;
+                        total_angle = 0;
+                    }
+                    // if (pulse_width >= min_pulse_width && pulse_width <= max_pulse_width &&
+                    //     !pause && voltage > 0.1)
+                    // {
                     // Save previous angle
                     int prev_angle = current_angle;
 
@@ -317,16 +313,6 @@ int main(void)
     NVIC_EnableIRQ(TIM2_IRQn);          // Enable TIM2 interrupt in NVIC
     NVIC_SetPriority(TIM2_IRQn, 2);     // Set priority for TIM2
     TIM2->CR1 = TIM_CR1_CEN;            // Enable TIM2
-
-    // enable uart
-    RCC->APB1ENR |= RCC_APB1ENR_USART2EN;
-    // Set PA2 (TX) and PA3 (RX) to alternate function
-    GPIOA->MODER &= ~((3 << (UART_TX_PIN * 2)) | (3 << (UART_RX_PIN * 2))); // Clear mode bits
-    GPIOA->MODER |= (2 << (UART_TX_PIN * 2)) | (2 << (UART_RX_PIN * 2));    // AF mode
-    GPIOA->AFR[0] |= (7 << (UART_TX_PIN * 4)) | (7 << (UART_RX_PIN * 4));   // AF7 for USART2
-    // Configure USART2: 115200 baud, 8N1, enable TX and RX
-    USART2->BRR = FREQUENCY / BAUDRATE;                       // Assuming 16 MHz clock
-    USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Enable TX, RX, USART
 
     PWM_Output_PC6_Init();
     PWM_Input_PC7_Init();
