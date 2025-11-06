@@ -111,7 +111,6 @@ void PWM_Input_PC7_Init(void)
     NVIC_EnableIRQ(TIM3_IRQn); // Enable TIM3 interrupt in NVIC
 }
 
-// TIM3 input capture interrupt handler for PC7 (CH2)
 volatile int count = 0;
 void TIM3_IRQHandler(void)
 {
@@ -127,38 +126,53 @@ void TIM3_IRQHandler(void)
         }
         else
         {
-            count++;
-            if (count > 1000000)
-            {
-                count = 0;
-                total_angle = 0;
-            }
             last_falling = TIM3->CCR2;
             if (last_falling >= last_rising)
             {
                 if (last_falling - last_rising < 1100)
                 {
                     pulse_width = last_falling - last_rising;
-
-                    last_angle = current_angle;
-                    current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
-                    if (cw)
-                    {
-                        total_angle += current_angle - last_angle;
-                    }
-                    else
-                    {
-                        total_angle += last_angle - current_angle;
-                    }
+                    // Do NOT compute current_angle here — we need the previous
+                    // angle value (prev_angle) before updating current_angle so
+                    // angle_change is calculated correctly below.
                 }
+                //---
+                count++;
+                if (count > 1000000)
+                {
+                    count = 0;
+                    total_angle = 0;
+                }
+                if (pulse_width >= min_pulse_width && pulse_width <= max_pulse_width &&
+                    !pause && voltage > 0.1)
+                {
+                    // Save previous angle
+                    int prev_angle = current_angle;
+
+                    // Calculate new angle position
+                    current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
+
+                    // Calculate angle change with wraparound handling
+                    int angle_change = current_angle - prev_angle;
+
+                    // Handle wraparound cases
+                    if (angle_change > 180)
+                    {
+                        angle_change -= 360; // Going backwards across 0/360 boundary
+                    }
+                    else if (angle_change < -180)
+                    {
+                        angle_change += 360; // Going forwards across 0/360 boundary
+                    }
+                    total_angle += angle_change;
+                }
+                //---
             }
             else
-            {
                 pulse_width = (0xFFFF - last_rising) + last_falling + 1;
-                // Switch back to capture rising edge
-                TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
-                waiting_for_falling = 0;
-            }
+            // Switch back to capture rising edge
+            TIM3->CCER &= ~TIM_CCER_CC2P; // Set to rising edge
+            waiting_for_falling = 0;
         }
     }
 }
@@ -171,10 +185,10 @@ void servo_angle_set(int pwm)
 void TIM2_IRQHandler(void)
 { // TIM2 interrupt handler for SSD refresh
     if (TIM2->SR & TIM_SR_UIF)
-    {                                        // Check if the update interrupt flag is set
-        SSD_update(digitSelect, rpm, 3);     // Update the SSD with the current distance showing hundredths
-        digitSelect = (digitSelect + 1) % 4; // Cycle through digitSelect values 0 to 3
-        TIM2->SR &= ~TIM_SR_UIF;             // Clear the update interrupt flag
+    {                                         // Check if the update interrupt flag is set
+        SSD_update(digitSelect, rpm * 10, 3); // Update the SSD with the current distance showing hundredths
+        digitSelect = (digitSelect + 1) % 4;  // Cycle through digitSelect values 0 to 3
+        TIM2->SR &= ~TIM_SR_UIF;              // Clear the update interrupt flag
     }
 }
 
@@ -212,14 +226,19 @@ void SysTick_Handler(void)
         }
     }
 
-    // Calculate angle change
-    // Calculate RPM from accumulated angle change
-    // SysTick is configured with FREQUENCY (16MHz), so it triggers every 1 second
+    rpm = (total_angle * 60) / 360;
 
-    rpm = (total_angle * 60) / 360; // Convert degrees/sec to rotations/minute
+    // Debug output
+    uart2_send_string("last: ");
+    uart2_send_int32(last_angle);
+    uart2_send_string(" current: ");
+    uart2_send_int32(current_angle);
+    uart2_send_string(" total: ");
+    uart2_send_int32(total_angle);
+    uart2_send_string("\n");
 
-    // Reset total_angle for next measurement
-    // total_angle = 0;
+    // Reset counters
+    total_angle = 0;
 
     uart2_send_string("ADC: ");
     uart2_send_int32(voltage);
@@ -260,8 +279,8 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     UART2_Init();
-    SSD_init(); // Initialize SSD
-    SysTick_Config(FREQUENCY);
+    SSD_init();                // Initialize SSD
+    SysTick_Config(FREQUENCY); // Configure for 1ms intervals (1kHz)
 
     // Set PA1 (ADC) to analog mode
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
