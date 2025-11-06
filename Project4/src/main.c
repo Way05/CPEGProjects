@@ -127,15 +127,21 @@ void TIM3_IRQHandler(void)
         }
         else
         {
+            count++;
+            if (count > 1000000)
+            {
+                count = 0;
+                total_angle = 0;
+            }
             last_falling = TIM3->CCR2;
             if (last_falling >= last_rising)
             {
                 if (last_falling - last_rising < 1100)
                 {
                     pulse_width = last_falling - last_rising;
+
                     last_angle = current_angle;
                     current_angle = (pulse_width - min_pulse_width) * 360 / (max_pulse_width - min_pulse_width);
-
                     if (cw)
                     {
                         total_angle += current_angle - last_angle;
@@ -196,13 +202,13 @@ void SysTick_Handler(void)
     {
         if (cw)
         {
-            // Map voltage (0-3.3V) to CW range (1480-1280)
-            servo_width = 1480 - (voltage * 200.0 / 3.3);
+            // Map voltage (0-3.3V) to CW range (1500-1300)
+            servo_width = 1500 - (voltage * 200.0 / 3.3);
         }
         else
         {
-            // Map voltage (0-3.3V) to CCW range (1520-1720)
-            servo_width = 1520 + (voltage * 200.0 / 3.3);
+            // Map voltage (0-3.3V) to CCW range (1500-1700)
+            servo_width = 1500 + (voltage * 200.0 / 3.3);
         }
     }
 
