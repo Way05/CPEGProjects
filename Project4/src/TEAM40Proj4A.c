@@ -31,16 +31,13 @@
 #define ADC_CHANNEL 1  // ADC Channel for PA1
 #define ADC_SAMPLES 16 // Number of samples for averaging
 
-int offsetDeg = 235;        // this will depend on your setup
 int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
 int max_pulse_width = 1076; // maximum encoder pulse width in microseconds
-int angle = 0;
 int cw_pulse_width = 1400;  // 1450 for slower movement;
 int ccw_pulse_width = 1600; // 1550 for slower movement;
 volatile int current_angle = 0;
 volatile int last_angle = 0;
 volatile uint32_t last_rising = 0;
-// volatile uint32_t before_falling = 0; //initial  falling edge
 volatile uint32_t last_falling = 0;
 volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
@@ -51,7 +48,7 @@ volatile bool pause = false;
 volatile bool cw = true;
 volatile int total = 0;
 volatile float rpm = 0;
-volatile int total_angle = 0;
+volatile float total_angle = 0;
 
 void PWM_Output_PC6_Init(void)
 {
@@ -189,7 +186,11 @@ void servo_angle_set(int pwm)
 void TIM2_IRQHandler(void)
 { // TIM2 interrupt handler for SSD refresh
     if (TIM2->SR & TIM_SR_UIF)
-    {                                         // Check if the update interrupt flag is set
+    { // Check if the update interrupt flag is set
+        if (rpm < 0)
+        {
+            rpm = 0;
+        }
         SSD_update(digitSelect, rpm * 10, 3); // Update the SSD with the current distance showing hundredths
         digitSelect = (digitSelect + 1) % 4;  // Cycle through digitSelect values 0 to 3
         TIM2->SR &= ~TIM_SR_UIF;              // Clear the update interrupt flag
@@ -230,22 +231,22 @@ void SysTick_Handler(void)
         }
     }
 
-    rpm = (total_angle * 60) / 360;
+    rpm = (total_angle * 60.0) / 360.0;
 
     // Debug output
-    uart2_send_string("last: ");
-    uart2_send_int32(last_angle);
-    uart2_send_string(" current: ");
-    uart2_send_int32(current_angle);
-    uart2_send_string(" total: ");
-    uart2_send_int32(total_angle);
-    uart2_send_string("\n");
+    // uart2_send_string("last: ");
+    // uart2_send_int32(last_angle);
+    // uart2_send_string(" current: ");
+    // uart2_send_int32(current_angle);
+    // uart2_send_string(" total: ");
+    // uart2_send_int32(total_angle);
+    // uart2_send_string("\n");
 
     // Reset counters
     total_angle = 0;
 
     uart2_send_string("ADC: ");
-    uart2_send_int32(voltage);
+    uart2_send_int32(voltage / 3.3 * 4095.0);
     uart2_send_string("\t  dir: ");
     if (cw)
     {
