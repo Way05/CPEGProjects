@@ -7,7 +7,6 @@
 // ****************************************************************
 
 #include "stm32f4xx.h"
-#include "UART2.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include "SSD_Array.h"
@@ -96,10 +95,10 @@ void PWM_Output_PC9_Init(void)
     TIM8->CCER |= TIM_CCER_CC4E;              // Enable CH1 output (PC8)
 }
 
-void servo_angle_set(int pwm)
+void servo_angle_set(int pwm1, int pwm2)
 {
-    TIM8->CCR3 = pwm;
-    TIM8->CCR4 = pwm;
+    TIM8->CCR3 = pwm1;
+    TIM8->CCR4 = pwm2;
 }
 
 void TIM2_IRQHandler(void)
@@ -114,13 +113,10 @@ void TIM2_IRQHandler(void)
 
 void SysTick_Handler(void)
 {
-    int servo_width = 1580;
+    int left_servo_width = 1520;
+    int right_servo_width = 1480;
 
-    uart2_send_string("servo pulsewidth(us): ");
-    uart2_send_int32(servo_width);
-    uart2_send_string("\r\n");
-
-    servo_angle_set(servo_width);
+    servo_angle_set(left_servo_width, right_servo_width);
 }
 
 void EXTI15_10_IRQHandler(void)
@@ -136,7 +132,6 @@ int main(void)
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-    UART2_Init();
     SSD_init();                // Initialize SSD
     SysTick_Config(FREQUENCY); // Configure for 1ms intervals (1kHz)
 
@@ -160,7 +155,6 @@ int main(void)
 
     PWM_Output_PC8_Init();
     PWM_Output_PC9_Init();
-    uart2_send_string("CPEG222 Line Follower!\r\n");
 
     while (1)
     {
