@@ -107,10 +107,10 @@ void SSD_update(int digitSelect, int value, int decimalPoint)
     case 0:
     { // Update first digit
         unsigned char segments = digitSegments[firstDigit];
-        if (firstDigit == 0 && decimalPoint != 1)
-        {
-            segments = digitSegments[10]; // Blank leading zero
-        }
+        // if (firstDigit == 0 && decimalPoint != 1)
+        // {
+        //     segments = digitSegments[10]; // Blank leading zero
+        // }
         SSDAA_PORT->ODR = (SSDAA_PORT->ODR & ~(1 << SSDAA_PIN)) |
                           ((segments & 0x01) ? (1 << SSDAA_PIN) : 0);
         SSDAB_PORT->ODR = (SSDAB_PORT->ODR & ~(1 << SSDAB_PIN)) |
@@ -140,10 +140,10 @@ void SSD_update(int digitSelect, int value, int decimalPoint)
     case 1:
     { // Update second digit
         unsigned char segments1 = digitSegments[secondDigit];
-        if (firstDigit == 0 && secondDigit == 0 && (decimalPoint != 2 || decimalPoint != 1))
-        {
-            segments1 = digitSegments[10]; // Blank leading zero
-        }
+        // if (firstDigit == 0 && secondDigit == 0 && (decimalPoint != 2 || decimalPoint != 1))
+        // {
+        //     segments1 = digitSegments[10]; // Blank leading zero
+        // }
         SSDAA_PORT->ODR = (SSDAA_PORT->ODR & ~(1 << SSDAA_PIN)) |
                           ((segments1 & 0x01) ? (1 << SSDAA_PIN) : 0);
         SSDAB_PORT->ODR = (SSDAB_PORT->ODR & ~(1 << SSDAB_PIN)) |
@@ -173,10 +173,10 @@ void SSD_update(int digitSelect, int value, int decimalPoint)
     case 2:
     { // Update third digit
         unsigned char segments2 = digitSegments[thirdDigit];
-        if (firstDigit == 0 && secondDigit == 0 && (thirdDigit == 0 && (decimalPoint == 0 || decimalPoint == 4)))
-        {
-            segments2 = digitSegments[10]; // Blank leading zero
-        }
+        // if (firstDigit == 0 && secondDigit == 0 && (thirdDigit == 0 && (decimalPoint == 0 || decimalPoint == 4)))
+        // {
+        //     segments2 = digitSegments[10]; // Blank leading zero
+        // }
         SSDAA_PORT->ODR = (SSDAA_PORT->ODR & ~(1 << SSDAA_PIN)) |
                           ((segments2 & 0x01) ? (1 << SSDAA_PIN) : 0);
         SSDAB_PORT->ODR = (SSDAB_PORT->ODR & ~(1 << SSDAB_PIN)) |
