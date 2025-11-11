@@ -1,9 +1,9 @@
 // ****************************************************************
 // * TEAM40: Tan. Wei-en and Becker, Mia
-// * CPEG222 Project 4A
+// * CPEG222 Project 4B
 // * NucleoF466RE CMSIS STM32F4xx
-// * Single wheel potentiometer RPM control
-// * Print data to uart
+// * Simple Line Following
+// * Using both motors + IR for navigation
 // ****************************************************************
 
 #include "stm32f4xx.h"
@@ -13,9 +13,11 @@
 
 #define FREQUENCY 16000000UL // 16 MHz
 
-#define LEFT_SERVO (8) // Assuming servo motor 3 control pin is connected to GPIOC pin 6
-#define RIGHT_SERVO (9)
-#define SERVO_PORT (GPIOC)
+#define LEFT_SERVO 8
+#define RIGHT_SERVO 9
+#define SERVO_PORT GPIOC
+
+#define IR_PORT GPIOC
 
 #define BTN_PIN 13
 
@@ -36,7 +38,8 @@ volatile uint32_t pulse_width = 0;
 volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 
-volatile bool stop = false;
+volatile bool stop = true;
+bool on_hash = false;
 volatile int sensor = 0;
 
 void PWM_Output_PC8_Init(void)
@@ -116,7 +119,60 @@ void SysTick_Handler(void)
     int left_servo_width = 1520;
     int right_servo_width = 1480;
 
-    servo_angle_set(left_servo_width, right_servo_width);
+    // 0 is not on line, 1 is on line
+    int IRSensorReading = IR_PORT->IDR & 0x0F;
+    switch (IRSensorReading)
+    {
+    // no line
+    case 0:
+        stop = true;
+        break;
+    // too far right (turn left)
+    case 1:
+    case 3:
+    case 7:
+        left_servo_width = 1500;
+        right_servo_width = 1480;
+        break;
+    // centered
+    case 6:
+        left_servo_width = 1520;
+        right_servo_width = 1480;
+        break;
+    // too far left (turn right)
+    case 8:
+    case 12:
+    case 14:
+        left_servo_width = 1520;
+        right_servo_width = 1500;
+        break;
+    // stop bar
+    case 15:
+        if (on_hash)
+        {
+            left_servo_width = 1500;
+            right_servo_width = 1500;
+            stop = true;
+        }
+        else if (!on_hash)
+        {
+            left_servo_width = 1520;
+            right_servo_width = 1480;
+            on_hash = true;
+        }
+        break;
+    }
+
+    sensor = 0;
+    sensor += (((IRSensorReading >> 0) & 1) ^ 1);
+    sensor += (((IRSensorReading >> 1) & 1) ^ 1) * 10;
+    sensor += (((IRSensorReading >> 2) & 1) ^ 1) * 100;
+    sensor += (((IRSensorReading >> 3) & 1) ^ 1) * 1000;
+
+    if (!stop)
+    {
+        servo_angle_set(left_servo_width, right_servo_width);
+    }
 }
 
 void EXTI15_10_IRQHandler(void)
@@ -124,6 +180,7 @@ void EXTI15_10_IRQHandler(void)
     if (EXTI->PR & (1 << BTN_PIN))
     {                               // checks if button is interrupting
         EXTI->PR |= (1 << BTN_PIN); // clear interrupt so it can check again
+        stop = false;
     }
 }
 
