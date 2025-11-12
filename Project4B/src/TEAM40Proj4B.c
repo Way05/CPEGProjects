@@ -41,6 +41,7 @@ volatile uint8_t digitSelect = 0;
 volatile bool stop = true;
 bool on_hash = false;
 volatile int sensor = 0;
+int bar_count = 0;
 
 void PWM_Output_PC8_Init(void)
 {
@@ -119,61 +120,63 @@ void SysTick_Handler(void)
     int left_servo_width = 1540;
     int right_servo_width = 1460;
 
-    // 0 is not on line, 1 is on line
+    // 1 is not on line, 0 is on line
     int IRSensorReading = IR_PORT->IDR & 0x0F;
     switch (IRSensorReading)
     {
-    // no line 0000
-    case 0:
-        stop = true;
+    // no line 1111
+    case 15:
+        left_servo_width = 1500;
+        right_servo_width = 1500;
         break;
-    // extreme right (hard left) 0001
+    // hard right 0001
     case 1:
         left_servo_width = 1450;
         right_servo_width = 1450;
         break;
-    // too far right (turn left) 0011
+    // hard left 1000
+    case 8:
+        left_servo_width = 1560;
+        right_servo_width = 1560;
+        break;
+    // turn left 1100
+    case 12:
+        left_servo_width = 1560;
+        right_servo_width = 1500;
+        break;
+    // centered 0110
+    case 9:
+        left_servo_width = 1540;
+        right_servo_width = 1460;
+        break;
+    // turn right 0011
     case 3:
         left_servo_width = 1500;
         right_servo_width = 1470;
         break;
-    // centered 0110
-    case 6:
-        left_servo_width = 1540;
-        right_servo_width = 1460;
-        break;
-    // extreme left (hard right) 1000
-    case 8:
-        left_servo_width = 1540;
-        right_servo_width = 1580;
-        break;
-    // too far left (turn right) 1100
-    case 12:
-        left_servo_width = 1540;
-        right_servo_width = 1500;
-        break;
-    // stop bar 1111
-    case 15:
-        if (on_hash)
-        {
-            left_servo_width = 1500;
-            right_servo_width = 1500;
-            stop = true;
-        }
-        else if (!on_hash)
-        {
-            left_servo_width = 1530;
-            right_servo_width = 1470;
-            on_hash = true;
-        }
+    // stop bar 0000
+    case 0:
+        // if (on_hash)
+        // {
+        //     left_servo_width = 1500;
+        //     right_servo_width = 1500;
+        //     stop = true;
+        // }
+        // else if (!on_hash)
+        // {
+        //     left_servo_width = 1530;
+        //     right_servo_width = 1470;
+        //     on_hash = true;
+        // }
         break;
     }
 
+    // decimal to binary for display
     sensor = 0;
-    sensor += (((IRSensorReading >> 0) & 1) ^ 1);
-    sensor += (((IRSensorReading >> 1) & 1) ^ 1) * 10;
-    sensor += (((IRSensorReading >> 2) & 1) ^ 1) * 100;
-    sensor += (((IRSensorReading >> 3) & 1) ^ 1) * 1000;
+    sensor += (((IRSensorReading >> 0) & 1));
+    sensor += (((IRSensorReading >> 1) & 1)) * 10;
+    sensor += (((IRSensorReading >> 2) & 1)) * 100;
+    sensor += (((IRSensorReading >> 3) & 1)) * 1000;
 
     if (!stop)
     {
@@ -196,7 +199,7 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     SSD_init();                    // Initialize SSD
-    SysTick_Config(FREQUENCY / 2); // Configure for 1ms intervals (1kHz)
+    SysTick_Config(FREQUENCY / 4); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
