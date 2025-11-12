@@ -116,37 +116,43 @@ void TIM2_IRQHandler(void)
 
 void SysTick_Handler(void)
 {
-    int left_servo_width = 1520;
-    int right_servo_width = 1480;
+    int left_servo_width = 1540;
+    int right_servo_width = 1460;
 
     // 0 is not on line, 1 is on line
     int IRSensorReading = IR_PORT->IDR & 0x0F;
     switch (IRSensorReading)
     {
-    // no line
+    // no line 0000
     case 0:
         stop = true;
         break;
-    // too far right (turn left)
+    // extreme right (hard left) 0001
     case 1:
+        left_servo_width = 1450;
+        right_servo_width = 1450;
+        break;
+    // too far right (turn left) 0011
     case 3:
-    case 7:
         left_servo_width = 1500;
-        right_servo_width = 1480;
+        right_servo_width = 1470;
         break;
-    // centered
+    // centered 0110
     case 6:
-        left_servo_width = 1520;
-        right_servo_width = 1480;
+        left_servo_width = 1540;
+        right_servo_width = 1460;
         break;
-    // too far left (turn right)
+    // extreme left (hard right) 1000
     case 8:
+        left_servo_width = 1540;
+        right_servo_width = 1580;
+        break;
+    // too far left (turn right) 1100
     case 12:
-    case 14:
-        left_servo_width = 1520;
+        left_servo_width = 1540;
         right_servo_width = 1500;
         break;
-    // stop bar
+    // stop bar 1111
     case 15:
         if (on_hash)
         {
@@ -156,8 +162,8 @@ void SysTick_Handler(void)
         }
         else if (!on_hash)
         {
-            left_servo_width = 1520;
-            right_servo_width = 1480;
+            left_servo_width = 1530;
+            right_servo_width = 1470;
             on_hash = true;
         }
         break;
@@ -189,8 +195,8 @@ int main(void)
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-    SSD_init();                // Initialize SSD
-    SysTick_Config(FREQUENCY); // Configure for 1ms intervals (1kHz)
+    SSD_init();                    // Initialize SSD
+    SysTick_Config(FREQUENCY / 2); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
