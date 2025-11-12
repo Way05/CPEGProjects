@@ -118,7 +118,7 @@ void SysTick_Handler(void)
 {
     int left_servo_width = 1540;
     int right_servo_width = 1460;
-
+    int previous_case=0;
     // 0 is not on line, 1 is on line
     int IRSensorReading = IR_PORT->IDR & 0x0F;
     switch (IRSensorReading)
@@ -154,7 +154,7 @@ void SysTick_Handler(void)
         break;
     // stop bar 1111
     case 15:
-        if (on_hash)
+        if (on_hash && previous_case != 15)
         {
             left_servo_width = 1500;
             right_servo_width = 1500;
@@ -166,9 +166,11 @@ void SysTick_Handler(void)
             right_servo_width = 1470;
             on_hash = true;
         }
+        left_servo_width = 1530;
+        right_servo_width = 1470;
         break;
     }
-
+    previous_case = IRSensorReading;
     sensor = 0;
     sensor += (((IRSensorReading >> 0) & 1) ^ 1);
     sensor += (((IRSensorReading >> 1) & 1) ^ 1) * 10;
