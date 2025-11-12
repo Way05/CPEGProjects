@@ -119,6 +119,7 @@ void SysTick_Handler(void)
 {
     int left_servo_width = 1540;
     int right_servo_width = 1460;
+    int previous_state = 0;
 
     // 1 is not on line, 0 is on line
     int IRSensorReading = IR_PORT->IDR & 0x0F;
@@ -156,7 +157,7 @@ void SysTick_Handler(void)
         break;
     // stop bar 0000
     case 0:
-        // if (on_hash)
+        // if (on_hash && previous_state != 0)
         // {
         //     left_servo_width = 1500;
         //     right_servo_width = 1500;
@@ -170,6 +171,8 @@ void SysTick_Handler(void)
         // }
         break;
     }
+
+    previous_state = IRSensorReading;
 
     // decimal to binary for display
     sensor = 0;
