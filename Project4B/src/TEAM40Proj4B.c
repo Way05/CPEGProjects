@@ -26,20 +26,10 @@
 #define UART_PORT GPIOA
 #define BAUDRATE 115200
 
-int min_pulse_width = 32;   // minimum encoder pulse width in microseconds
-int max_pulse_width = 1076; // maximum encoder pulse width in microseconds
-int cw_pulse_width = 1400;  // 1450 for slower movement;
-int ccw_pulse_width = 1600; // 1550 for slower movement;
-volatile int current_angle = 0;
-volatile int last_angle = 0;
-volatile uint32_t last_rising = 0;
-volatile uint32_t last_falling = 0;
-volatile uint32_t pulse_width = 0;
-volatile uint8_t waiting_for_falling = 0;
 volatile uint8_t digitSelect = 0;
 
-volatile bool stop = true;
-bool on_hash = false;
+volatile bool stop = 1;
+volatile bool hash_stop = 0;
 volatile int sensor = 0;
 int bar_count = 0;
 
@@ -115,75 +105,93 @@ void TIM2_IRQHandler(void)
     }
 }
 
+int left_servo_width = 1500;
+int right_servo_width = 1500;
+int previous_state = 0;
 void SysTick_Handler(void)
 {
-    int left_servo_width = 1540;
-    int right_servo_width = 1460;
-    int previous_state = 0;
-
-    // 1 is not on line, 0 is on line
     int IRSensorReading = IR_PORT->IDR & 0x0F;
-    switch (IRSensorReading)
+
+    if (stop == 0)
     {
-    // no line 1111
-    case 15:
-        left_servo_width = 1500;
-        right_servo_width = 1500;
-        break;
-    // hard right 0001
-    case 1:
-        left_servo_width = 1450;
-        right_servo_width = 1450;
-        break;
-    // hard left 1000
-    case 8:
-        left_servo_width = 1560;
-        right_servo_width = 1560;
-        break;
-    // turn left 1100
-    case 12:
-        left_servo_width = 1560;
-        right_servo_width = 1500;
-        break;
-    // centered 0110
-    case 9:
-        left_servo_width = 1540;
-        right_servo_width = 1460;
-        break;
-    // turn right 0011
-    case 3:
-        left_servo_width = 1500;
-        right_servo_width = 1470;
-        break;
-    // stop bar 0000
-    case 0:
-        // if (on_hash && previous_state != 0)
-        // {
-        //     left_servo_width = 1500;
-        //     right_servo_width = 1500;
-        //     stop = true;
-        // }
-        // else if (!on_hash)
-        // {
-        //     left_servo_width = 1530;
-        //     right_servo_width = 1470;
-        //     on_hash = true;
-        // }
-        break;
+        // 1 is not on line, 0 is on line
+        switch (IRSensorReading)
+        {
+        // no line 1111
+        case 15:
+            left_servo_width = 1500;
+            right_servo_width = 1500;
+            break;
+        // hard right 0001
+        case 1:
+            left_servo_width = 1560;
+            right_servo_width = 1560;
+            break;
+        // hard left 1000
+        case 8:
+            left_servo_width = 1450;
+            right_servo_width = 1450;
+            break;
+        // hard right 0111
+        case 7:
+            left_servo_width = 1560;
+            right_servo_width = 1560;
+            break;
+        // hard left 1110
+        case 14:
+            left_servo_width = 1560;
+            right_servo_width = 1560;
+            break;
+        // turn left 1100
+        case 12:
+            left_servo_width = 1560;
+            right_servo_width = 1470;
+            break;
+        // turn right 0011
+        case 3:
+            left_servo_width = 1520;
+            right_servo_width = 1470;
+            break;
+        // centered 0110
+        case 9:
+            left_servo_width = 1540;
+            right_servo_width = 1460;
+            break;
+        // stop bar 0000
+        case 0:
+            if (hash_stop == 0 && stop == 0)
+            {
+                left_servo_width = 1580;
+                right_servo_width = 1420;
+                hash_stop = 1;
+            }
+            else if (hash_stop == 1 && previous_state != 0)
+            {
+                left_servo_width = 1500;
+                right_servo_width = 1500;
+                stop = 1;
+            }
+            break;
+        }
     }
 
     previous_state = IRSensorReading;
 
     // decimal to binary for display
+    // inverses bits for 1 line and 0 none
     sensor = 0;
-    sensor += (((IRSensorReading >> 0) & 1));
-    sensor += (((IRSensorReading >> 1) & 1)) * 10;
-    sensor += (((IRSensorReading >> 2) & 1)) * 100;
-    sensor += (((IRSensorReading >> 3) & 1)) * 1000;
+    sensor += (((IRSensorReading >> 0) & 1) ^ 1);
+    sensor += (((IRSensorReading >> 1) & 1) ^ 1) * 10;
+    sensor += (((IRSensorReading >> 2) & 1) ^ 1) * 100;
+    sensor += (((IRSensorReading >> 3) & 1) ^ 1) * 1000;
 
-    if (!stop)
+    if (stop == 0)
     {
         servo_angle_set(left_servo_width, right_servo_width);
+    }
+    else
+    {
+        servo_angle_set(1500, 1500);
     }
 }
 
@@ -192,7 +200,8 @@ void EXTI15_10_IRQHandler(void)
     if (EXTI->PR & (1 << BTN_PIN))
     {                               // checks if button is interrupting
         EXTI->PR |= (1 << BTN_PIN); // clear interrupt so it can check again
-        stop = false;
+        stop = 0;
+        hash_stop = 0;
     }
 }
 
@@ -202,7 +211,7 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     SSD_init();                    // Initialize SSD
-    SysTick_Config(FREQUENCY / 4); // Configure for 1ms intervals (1kHz)
+    SysTick_Config(FREQUENCY / 2); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
@@ -224,6 +233,9 @@ int main(void)
 
     PWM_Output_PC8_Init();
     PWM_Output_PC9_Init();
+
+    stop = 1;
+    hash_stop = 0;
 
     while (1)
     {
