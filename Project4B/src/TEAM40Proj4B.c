@@ -108,6 +108,8 @@ void TIM2_IRQHandler(void)
 int left_servo_width = 1500;
 int right_servo_width = 1500;
 int previous_state = 0;
+int speed_left = 1540;
+int speed_right = 1460;
 void SysTick_Handler(void)
 {
     int IRSensorReading = IR_PORT->IDR & 0x0F;
@@ -122,47 +124,47 @@ void SysTick_Handler(void)
             left_servo_width = 1500;
             right_servo_width = 1500;
             break;
-        // hard right 0001
+        // hard left 0001
         case 1:
-            left_servo_width = 1560;
-            right_servo_width = 1560;
+            left_servo_width = 1400;
+            right_servo_width = 1380;
             break;
-        // hard left 1000
-        case 8:
-            left_servo_width = 1450;
-            right_servo_width = 1450;
-            break;
-        // hard right 0111
+        // hard left 0111
         case 7:
-            left_servo_width = 1560;
-            right_servo_width = 1560;
+            left_servo_width = 1400;
+            right_servo_width = 1380;
             break;
-        // hard left 1110
+        // hard right 1000
+        case 8:
+            left_servo_width = 1600;
+            right_servo_width = 1580;
+            break;
+        // hard right 1110
         case 14:
-            left_servo_width = 1560;
-            right_servo_width = 1560;
+            left_servo_width = 1600;
+            right_servo_width = 1580;
             break;
-        // turn left 1100
+        // turn right 1100
         case 12:
-            left_servo_width = 1560;
-            right_servo_width = 1470;
+            left_servo_width = speed_left + 40;
+            right_servo_width = speed_right + 20;
             break;
-        // turn right 0011
+        // turn left 0011
         case 3:
-            left_servo_width = 1520;
-            right_servo_width = 1470;
+            left_servo_width = speed_left - 20;
+            right_servo_width = speed_right - 40;
             break;
         // centered 0110
         case 9:
-            left_servo_width = 1540;
-            right_servo_width = 1460;
+            left_servo_width = speed_left;
+            right_servo_width = speed_right;
             break;
         // stop bar 0000
         case 0:
             if (hash_stop == 0 && stop == 0)
             {
-                left_servo_width = 1580;
-                right_servo_width = 1420;
+                left_servo_width = speed_left + 40;
+                right_servo_width = speed_right - 40;
                 hash_stop = 1;
             }
             else if (hash_stop == 1 && previous_state != 0)
@@ -180,10 +182,10 @@ void SysTick_Handler(void)
     // decimal to binary for display
     // inverses bits for 1 line and 0 none
     sensor = 0;
-    sensor += (((IRSensorReading >> 0) & 1) ^ 1);
-    sensor += (((IRSensorReading >> 1) & 1) ^ 1) * 10;
-    sensor += (((IRSensorReading >> 2) & 1) ^ 1) * 100;
-    sensor += (((IRSensorReading >> 3) & 1) ^ 1) * 1000;
+    sensor += (~(IRSensorReading >> 0) & 1);
+    sensor += (~(IRSensorReading >> 1) & 1) * 10;
+    sensor += (~(IRSensorReading >> 2) & 1) * 100;
+    sensor += (~(IRSensorReading >> 3) & 1) * 1000;
 
     if (stop == 0)
     {
