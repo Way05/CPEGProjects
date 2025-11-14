@@ -126,33 +126,35 @@ void SysTick_Handler(void)
             break;
         // hard left 0001
         case 1:
-            left_servo_width = 1400;
-            right_servo_width = 1380;
+            left_servo_width = 1600;
+            right_servo_width = 1580;
             break;
         // hard left 0111
         case 7:
-            left_servo_width = 1400;
-            right_servo_width = 1380;
+            left_servo_width = 1600;
+            right_servo_width = 1580;
             break;
         // hard right 1000
         case 8:
-            left_servo_width = 1600;
-            right_servo_width = 1580;
+            left_servo_width = 1400;
+            right_servo_width = 1380;
+
             break;
         // hard right 1110
         case 14:
-            left_servo_width = 1600;
-            right_servo_width = 1580;
+            left_servo_width = 1400;
+            right_servo_width = 1380;
+
             break;
         // turn right 1100
         case 12:
-            left_servo_width = speed_left + 10;
-            right_servo_width = speed_right + 40;
+            left_servo_width = speed_left - 40;
+            right_servo_width = speed_right - 10;
             break;
         // turn left 0011
         case 3:
-            left_servo_width = speed_left - 40;
-            right_servo_width = speed_right - 10;
+            left_servo_width = speed_left + 10;
+            right_servo_width = speed_right + 40;
             break;
         // centered 0110
         case 9:
