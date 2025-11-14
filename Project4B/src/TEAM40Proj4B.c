@@ -184,10 +184,10 @@ void SysTick_Handler(void)
     // decimal to binary for display
     // inverses bits for 1 line and 0 none
     sensor = 0;
-    sensor += (~(IRSensorReading >> 0) & 1);
-    sensor += (~(IRSensorReading >> 1) & 1) * 10;
-    sensor += (~(IRSensorReading >> 2) & 1) * 100;
-    sensor += (~(IRSensorReading >> 3) & 1) * 1000;
+    sensor += (~(IRSensorReading >> 0) & 1) * 1000;
+    sensor += (~(IRSensorReading >> 1) & 1) * 100;
+    sensor += (~(IRSensorReading >> 2) & 1) * 10;
+    sensor += (~(IRSensorReading >> 3) & 1) * 1;
 
     if (stop == 0)
     {
