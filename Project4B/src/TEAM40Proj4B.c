@@ -108,8 +108,8 @@ void TIM2_IRQHandler(void)
 int left_servo_width = 1500;
 int right_servo_width = 1500;
 int previous_state = 0;
-int speed_left = 1540;
-int speed_right = 1460;
+int speed_left = 1550;
+int speed_right = 1450;
 void SysTick_Handler(void)
 {
     int IRSensorReading = IR_PORT->IDR & 0x0F;
@@ -146,17 +146,17 @@ void SysTick_Handler(void)
             break;
         // turn right 1100
         case 12:
-            left_servo_width = speed_left + 40;
-            right_servo_width = speed_right + 20;
+            left_servo_width = speed_left + 10;
+            right_servo_width = speed_right + 40;
             break;
         // turn left 0011
         case 3:
-            left_servo_width = speed_left - 20;
-            right_servo_width = speed_right - 40;
+            left_servo_width = speed_left - 40;
+            right_servo_width = speed_right - 10;
             break;
         // centered 0110
         case 9:
-            left_servo_width = speed_left;
+            left_servo_width = speed_left - 3;
             right_servo_width = speed_right;
             break;
         // stop bar 0000
@@ -213,7 +213,7 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     SSD_init();                    // Initialize SSD
-    SysTick_Config(FREQUENCY / 2); // Configure for 1ms intervals (1kHz)
+    SysTick_Config(FREQUENCY / 4); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
