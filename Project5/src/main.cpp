@@ -1,3 +1,4 @@
+#include <SSD_Array.h>
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -19,29 +20,46 @@
 #define LED_COUNT 4
 // Declare our NeoPixel strip object:
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-// Argument 1 = Number of pixels in NeoPixel strip
-// Argument 2 = Arduino pin number (most are valid)
-// Argument 3 = Pixel type flags, add together as needed:
-// NEO_KHZ800 800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-// NEO_KHZ400 400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-// NEO_GRB Pixels are wired for GRB bitstream (most NeoPixel products)
-// NEO_RGB Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-// NEO_RGBW Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-unsigned long pixelPrevious = 0;   // Previous Pixel Millis
-unsigned long patternPrevious = 0; // Previous Pattern Millis
-int patternCurrent = 0;            // Current Pattern Number
-int patternInterval = 5000;        // Pattern Interval (ms)
-bool patternComplete = false;
-int pixelInterval = 50;           // Pixel Interval (ms)
-int pixelQueue = 0;               // Pattern Pixel Queue
-int pixelCycle = 0;               // Pattern Pixel Cycle
+
+int patternCurrent = 0; // Current Pattern Number
+int SSD_Display = 0;
+int SSD_Decimal = 0;
 uint16_t pixelNumber = LED_COUNT; // Total Number of Pixels
 // Forward declarations for functions used before their definitions
 
+int digitSelect = 0;
+
 void printValues();
+void selectPattern();
 bool begin(uint8_t addr = BME280_ADDRESS, TwoWire *theWire = &Wire);
 Adafruit_BME280 bme; // I2C
 unsigned long delayTime;
+
+HardwareTimer timer(TIM1);
+
+void OnTimer1Interrupt()
+{
+  SSD_update(digitSelect, SSD_Display, SSD_Decimal);
+  digitSelect = (digitSelect + 1) % 4; // Cycle through digitSelect values 0 to 3
+}
+
+int lastDebounce;
+int debounceDelay = 50;
+void buttonISR()
+{
+  long curr = millis();
+  if (curr - lastDebounce > debounceDelay)
+  {
+    int buttonState = digitalRead(PC13);
+    if (buttonState == LOW)
+    {
+
+      selectPattern();
+      patternCurrent = (patternCurrent + 1) % 4;
+      lastDebounce = millis();
+    }
+  }
+}
 
 void setup()
 {
@@ -73,32 +91,70 @@ void setup()
 
   // END of Trinket-specific code.
   strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();            // Turn OFF all pixels ASAP
+  strip.show();            // Turn OFF all  ASAP
   strip.setBrightness(50); // Set BRIGHTNESS to about 1/5 (max = 255)
+
+  SSD_init();
+
+  pinMode(PC13, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PC13), buttonISR, CHANGE);
+
+  // Configure timer
+  timer.setPrescaleFactor(15); // Set prescaler to 2564 => timer frequency = 168MHz/2564 = 65522 Hz (from prediv'd by 1 clocksource of 168 MHz)
+  timer.setOverflow(500);      // Set overflow to 32761 => timer frequency = 65522 Hz / 32761 = 2 Hz
+  timer.attachInterrupt(OnTimer1Interrupt);
+  timer.refresh(); // Make register changes take effect
+  timer.resume();  // Start
+}
+
+void selectPattern()
+{
+  // Temperature C, red
+  if (patternCurrent == 0)
+  {
+    strip.fill(strip.Color(255, 0, 0), 0, LED_COUNT);
+    SSD_Decimal = 2;
+    SSD_Display = bme.readTemperature() * 100;
+  }
+  // Temperature F, purple
+  else if (patternCurrent == 1)
+  {
+    strip.fill(strip.Color(255, 0, 255), 0, LED_COUNT);
+    SSD_Decimal = 2;
+    SSD_Display = (bme.readTemperature() * 9 / 5 + 32) * 100;
+  }
+  // Humidity, blue
+  else if (patternCurrent == 2)
+  {
+    strip.fill(strip.Color(0, 0, 255), 0, LED_COUNT);
+    SSD_Decimal = 2;
+    SSD_Display = bme.readHumidity() * 100;
+  }
+  else if (patternCurrent == 3)
+  // Pressure, green
+  {
+    strip.fill(strip.Color(0, 255, 0), 0, LED_COUNT);
+    SSD_Decimal = 1;
+    SSD_Display = bme.readPressure() / 100.0F;
+  }
+  strip.show();
 }
 
 void loop()
 {
   printValues();
   delay(delayTime);
-
-  strip.rainbow();
-  strip.show();
 }
 
 void printValues()
 {
-  Serial.print("Temperature = ");
+  Serial.print("Temp(C) = ");
   Serial.print(bme.readTemperature());
-  Serial.println(" °C");
-  Serial.print("Pressure = ");
-  Serial.print(bme.readPressure() / 100.0F);
-  Serial.println(" hPa");
-  Serial.print("Approx. Altitude = ");
-  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-  Serial.println(" m");
-  Serial.print("Humidity = ");
+  Serial.print(", Temp(F) = ");
+  Serial.print(bme.readTemperature() * 9 / 5 + 32);
+  Serial.print(", RelHum(%) = ");
   Serial.print(bme.readHumidity());
-  Serial.println(" %");
+  Serial.print(", Press(atm) = ");
+  Serial.print(bme.readPressure() / 100.0F);
   Serial.println();
 }
