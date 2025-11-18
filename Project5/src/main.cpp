@@ -8,6 +8,7 @@
 #include <Adafruit_NeoPixel.h>
 
 #define LED_PIN PA0
+#define BTN_PIN PC13
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define BME280_ADDRESS (0x76) // Primary I2C Address
 #define LED_COUNT 4
@@ -40,7 +41,7 @@ void buttonISR()
   long curr = millis();
   if (curr - lastDebounce > debounceDelay)
   {
-    int buttonState = digitalRead(PC13);
+    int buttonState = digitalRead(BTN_PIN);
     if (buttonState == LOW)
     {
       patternCurrent = (patternCurrent + 1) % 4;
@@ -80,8 +81,8 @@ void setup()
 
   SSD_init();
 
-  pinMode(PC13, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PC13), buttonISR, CHANGE);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BTN_PIN), buttonISR, CHANGE);
 
   // Configure timer
   timer.setPrescaleFactor(15); // Set prescaler to 15
