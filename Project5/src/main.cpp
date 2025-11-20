@@ -23,7 +23,8 @@ uint16_t pixelNumber = LED_COUNT; // Total Number of Pixels
 int digitSelect = 0;
 int lastDebounce;
 int debounceDelay = 50;
-unsigned long delayTime = 5000;
+unsigned long delayTime = 1000;
+long uartPrevDelay;
 
 void printValues();
 void selectPattern();
@@ -127,7 +128,12 @@ void selectPattern()
 
 void loop()
 {
-  printValues();
+  long currUartDelay = millis();
+  if (currUartDelay - uartPrevDelay > 5000)
+  {
+    printValues();
+    uartPrevDelay = millis();
+  }
   selectPattern();
   delay(delayTime);
 }
