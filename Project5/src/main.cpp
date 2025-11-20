@@ -1,3 +1,11 @@
+/*
+ * TEAM40: W. Tan and M. Becker
+ * CPEG222 Project 5, 11/21/25
+ * NucleoF466RE Arduino
+ * Displays data on SSD with button for rotating outputs
+ * Outputs to Serial Monitor
+ */
+
 #include <SSD_Array.h>
 #include <Arduino.h>
 #include <Wire.h>
