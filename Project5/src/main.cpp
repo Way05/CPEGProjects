@@ -147,6 +147,6 @@ void printValues()
   Serial.print(", RelHum(%) = ");
   Serial.print(bme.readHumidity());
   Serial.print(", Press(atm) = ");
-  Serial.print(bme.readPressure() / 100.0F);
+  Serial.print(bme.readPressure() / 100000.0F, 3);
   Serial.println();
 }
