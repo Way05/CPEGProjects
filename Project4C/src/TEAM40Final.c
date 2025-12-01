@@ -21,15 +21,12 @@
 
 #define BTN_PIN 13
 
-#define UART_TX_PIN 2
-#define UART_RX_PIN 3
-#define UART_PORT GPIOA
-#define BAUDRATE 115200
-
 #define TRIG_PORT GPIOA
 #define TRIG_PIN 4
 #define ECHO_PORT GPIOB
 #define ECHO_PIN 0
+#define SERVO3_PIN 6
+#define SERVO3_PORT GPIOC
 
 volatile uint8_t digitSelect = 0;
 
@@ -140,6 +137,30 @@ void sweep_sensor()
     for (volatile int i = 0; i < 10000000UL; ++i)
         ;
     float L_distance = pulse_width / 58.3;
+
+    TRIG_PORT->ODR |= (1 << TRIG_PIN); // Set the trigger pin high
+    currentEdge = TIM5->CNT;           // Get the current timer count
+    while ((TIM5->CNT - currentEdge) < 10)
+        ;                               // Wait for 10us
+    TRIG_PORT->ODR &= ~(1 << TRIG_PIN); // Set the trigger pin low
+
+    //*IMPORTANT*
+    // IDR: input data register
+    // we read the specific pin using the bitshift ECHO_PIN to get whether the sensor is reading high or low
+    // basically we get the specific bit in the register and check it in the while loop
+    // 1: high, 0: low
+
+    // wait for echo signal to be high
+    while (!(ECHO_PORT->IDR & (1 << ECHO_PIN)))
+        ;
+    before = TIM5->CNT; // get time at high
+
+    // wait for echo signal to go low
+    while (ECHO_PORT->IDR & (1 << ECHO_PIN))
+        ;
+    after = TIM5->CNT; // get time at low
+
+    int pulse_width = after - before; // calculates the length of the echo pulse
 
     sensor_angle_set(45);
     for (volatile int i = 0; i < 10000000UL; ++i)
@@ -325,6 +346,16 @@ int main(void)
     TIM3->CR1 |= TIM_CR1_ARPE;                // Auto-reload preload enable
     TIM3->EGR = TIM_EGR_UG;                   // Generate update event
     TIM3->CR1 |= TIM_CR1_CEN;                 // Enable timer
+
+    // sensor port setup
+    TRIG_PORT->MODER &= ~(0x3 << (TRIG_PIN * 2)); // trig port clear mode and set to output
+    TRIG_PORT->MODER |= (0x1 << (TRIG_PIN * 2));
+    ECHO_PORT->MODER &= ~(0x3 << (ECHO_PIN * 2)); // echo port clear to the default input mode
+    // Set PC6 to alternate function (AF2 for TIM3_CH1)
+    GPIOC->MODER &= ~(0x3 << (SERVO3_PIN * 2));
+    GPIOC->MODER |= (0x2 << (SERVO3_PIN * 2)); // Alternate function
+    GPIOC->AFR[0] &= ~(0xF << (SERVO3_PIN * 4));
+    GPIOC->AFR[0] |= (0x2 << (SERVO3_PIN * 4)); // AF2 = TIM3
 
     PWM_Output_PC8_Init();
     PWM_Output_PC9_Init();
