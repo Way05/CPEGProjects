@@ -253,13 +253,13 @@ void SysTick_Handler(void)
             break;
         // turn right 1100
         case 12:
-            left_servo_width = speed_left - 50;
+            left_servo_width = 1500;
             right_servo_width = speed_right - 10;
             break;
         // turn left 0011
         case 3:
             left_servo_width = speed_left + 10;
-            right_servo_width = speed_right + 30;
+            right_servo_width = 1500;
             break;
         // centered 0110
         case 9:
@@ -365,8 +365,8 @@ int main(void)
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-    SSD_init();                     // Initialize SSD
-    SysTick_Config(FREQUENCY / 10); // Configure for 1ms intervals (1kHz)
+    SSD_init();                      // Initialize SSD
+    SysTick_Config(FREQUENCY / 100); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
