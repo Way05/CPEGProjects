@@ -112,7 +112,7 @@ bool parkRight = false;
 void sweep_sensor()
 {
     sensor_angle_set(-45);
-    for (volatile int i = 0; i < 10000000UL / 2; ++i)
+    for (volatile int i = 0; i < 10000000UL / 4; ++i)
         ;
 
     TRIG_PORT->ODR |= (1 << TRIG_PIN); // Set the trigger pin high
@@ -142,7 +142,7 @@ void sweep_sensor()
     float L_distance = pulse_width / 58.3;
 
     sensor_angle_set(45);
-    for (volatile int i = 0; i < 10000000UL / 2; ++i)
+    for (volatile int i = 0; i < 10000000UL / 3; ++i)
         ;
 
     TRIG_PORT->ODR |= (1 << TRIG_PIN); // Set the trigger pin high
@@ -210,8 +210,8 @@ void TIM2_IRQHandler(void)
 int left_servo_width = 1500;
 int right_servo_width = 1500;
 int previous_state = 0;
-int speed_left = 1570;
-int speed_right = 1430;
+int speed_left = 1590;
+int speed_right = 1410;
 bool checkSensor = false;
 void SysTick_Handler(void)
 {
@@ -253,13 +253,13 @@ void SysTick_Handler(void)
             break;
         // turn right 1100
         case 12:
-            left_servo_width = speed_left - 40;
+            left_servo_width = speed_left - 50;
             right_servo_width = speed_right - 10;
             break;
         // turn left 0011
         case 3:
             left_servo_width = speed_left + 10;
-            right_servo_width = speed_right + 40;
+            right_servo_width = speed_right + 30;
             break;
         // centered 0110
         case 9:
@@ -308,7 +308,7 @@ void SysTick_Handler(void)
             left_servo_width = 1600;
             right_servo_width = 1580;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 900000UL; ++i)
+            for (volatile int i = 0; i < 1000000UL; ++i)
                 ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
@@ -316,22 +316,22 @@ void SysTick_Handler(void)
             for (volatile int i = 0; i < 10000000UL; ++i)
                 ;
             // servo_angle_set(1500, 1500);
-            stop = true;
+            // stop = true;
         }
         else if (parkRight)
         {
             left_servo_width = 1400;
             right_servo_width = 1380;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 900000UL; ++i)
-                ;
+            // for (volatile int i = 0; i < 1100000UL; ++i)
+            //     ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 10000000UL; ++i)
-                ;
+            // for (volatile int i = 0; i < 10000000UL; ++i)
+            //     ;
             // servo_angle_set(1500, 1500);
-            stop = true;
+            // stop = true;
         }
     }
 
@@ -340,6 +340,11 @@ void SysTick_Handler(void)
         servo_angle_set(left_servo_width, right_servo_width);
     }
     else if (stop == true)
+    {
+        servo_angle_set(1500, 1500);
+    }
+
+    if (parking && IRSensorReading == 0)
     {
         servo_angle_set(1500, 1500);
     }
@@ -360,8 +365,8 @@ int main(void)
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
-    SSD_init();                    // Initialize SSD
-    SysTick_Config(FREQUENCY / 8); // Configure for 1ms intervals (1kHz)
+    SSD_init();                     // Initialize SSD
+    SysTick_Config(FREQUENCY / 10); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
