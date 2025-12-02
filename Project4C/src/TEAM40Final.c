@@ -107,8 +107,14 @@ volatile int currentEdge = 0;
 volatile int before = 0;
 volatile int after = 0;
 volatile int sweepDelay = 0;
+bool parkLeft = false;
+bool parkRight = false;
 void sweep_sensor()
 {
+    sensor_angle_set(-45);
+    for (volatile int i = 0; i < 10000000UL / 2; ++i)
+        ;
+
     TRIG_PORT->ODR |= (1 << TRIG_PIN); // Set the trigger pin high
     currentEdge = TIM5->CNT;           // Get the current timer count
     while ((TIM5->CNT - currentEdge) < 10)
@@ -133,11 +139,12 @@ void sweep_sensor()
 
     int pulse_width = after - before; // calculates the length of the echo pulse
 
-    sensor_angle_set(-45);
-    for (volatile int i = 0; i < 10000000UL; ++i)
-        ;
     float L_distance = pulse_width / 58.3;
 
+    sensor_angle_set(45);
+    for (volatile int i = 0; i < 10000000UL / 2; ++i)
+        ;
+
     TRIG_PORT->ODR |= (1 << TRIG_PIN); // Set the trigger pin high
     currentEdge = TIM5->CNT;           // Get the current timer count
     while ((TIM5->CNT - currentEdge) < 10)
@@ -160,20 +167,33 @@ void sweep_sensor()
         ;
     after = TIM5->CNT; // get time at low
 
-    int pulse_width = after - before; // calculates the length of the echo pulse
+    pulse_width = after - before; // calculates the length of the echo pulse
 
-    sensor_angle_set(45);
-    for (volatile int i = 0; i < 10000000UL; ++i)
-        ;
     float R_distance = pulse_width / 58.3;
+
+    if (L_distance > R_distance)
+    {
+        parkRight = true;
+    }
+    else
+    {
+        parkLeft = true;
+    }
 }
 
 volatile float timer = 0;
+bool checking = false;
+bool parking = false;
+bool stopParking = false;
 void TIM5_IRQHandler(void)
 {
-    if (stop == 0)
+    if (TIM5->SR & TIM_SR_UIF)
     {
-        timer += 0.1;
+        if (stop == false && checking == false)
+        {
+            timer += 1;
+        }
+        TIM5->SR &= !TIM_SR_UIF;
     }
 }
 
@@ -181,7 +201,7 @@ void TIM2_IRQHandler(void)
 { // TIM2 interrupt handler for SSD refresh
     if (TIM2->SR & TIM_SR_UIF)
     {                                        // Check if the update interrupt flag is set
-        SSD_update(digitSelect, timer, 1);   // Update the SSD with the current distance showing hundredths
+        SSD_update(digitSelect, timer, 3);   // Update the SSD with the current distance showing hundredths
         digitSelect = (digitSelect + 1) % 4; // Cycle through digitSelect values 0 to 3
         TIM2->SR &= ~TIM_SR_UIF;             // Clear the update interrupt flag
     }
@@ -190,14 +210,14 @@ void TIM2_IRQHandler(void)
 int left_servo_width = 1500;
 int right_servo_width = 1500;
 int previous_state = 0;
-int speed_left = 1550;
-int speed_right = 1450;
+int speed_left = 1570;
+int speed_right = 1430;
 bool checkSensor = false;
 void SysTick_Handler(void)
 {
     int IRSensorReading = IR_PORT->IDR & 0x0F;
 
-    if (stop == 0)
+    if (stop == false && !checkSensor && !parking)
     {
         // 1 is not on line, 0 is on line
         switch (IRSensorReading)
@@ -207,6 +227,7 @@ void SysTick_Handler(void)
             left_servo_width = 1500;
             right_servo_width = 1500;
             checkSensor = true;
+            servo_angle_set(1500, 1500);
             break;
         // hard left 0001
         case 1:
@@ -247,18 +268,22 @@ void SysTick_Handler(void)
             break;
         // stop bar 0000
         case 0:
-            if (hash_stop == 0 && stop == 0)
-            {
-                left_servo_width = speed_left + 40;
-                right_servo_width = speed_right - 40;
-                hash_stop = true;
-            }
-            else if (hash_stop == 1 && previous_state != 0)
-            {
-                left_servo_width = 1500;
-                right_servo_width = 1500;
-                stop = true;
-            }
+            // if (hash_stop == 0 && stop == 0)
+            // {
+
+            // left_servo_width = speed_left + 40;
+            // right_servo_width = speed_right - 40;
+
+            //     hash_stop = true;
+            // }
+            // else if (hash_stop == 1 && previous_state != 0)
+            // {
+            //     left_servo_width = 1500;
+            //     right_servo_width = 1500;
+            //     stop = true;
+            // }
+            left_servo_width = speed_left - 3;
+            right_servo_width = speed_right;
             break;
         }
     }
@@ -273,11 +298,48 @@ void SysTick_Handler(void)
     sensor += (~(IRSensorReading >> 2) & 1) * 10;
     sensor += (~(IRSensorReading >> 3) & 1) * 1;
 
-    if (stop == 0)
+    if (checkSensor && !checking && !parking)
+    {
+        checking = true;
+        sweep_sensor();
+        parking = true;
+        if (parkLeft)
+        {
+            left_servo_width = 1600;
+            right_servo_width = 1580;
+            servo_angle_set(left_servo_width, right_servo_width);
+            for (volatile int i = 0; i < 900000UL; ++i)
+                ;
+            left_servo_width = speed_left;
+            right_servo_width = speed_right;
+            servo_angle_set(left_servo_width, right_servo_width);
+            for (volatile int i = 0; i < 10000000UL; ++i)
+                ;
+            // servo_angle_set(1500, 1500);
+            stop = true;
+        }
+        else if (parkRight)
+        {
+            left_servo_width = 1400;
+            right_servo_width = 1380;
+            servo_angle_set(left_servo_width, right_servo_width);
+            for (volatile int i = 0; i < 900000UL; ++i)
+                ;
+            left_servo_width = speed_left;
+            right_servo_width = speed_right;
+            servo_angle_set(left_servo_width, right_servo_width);
+            for (volatile int i = 0; i < 10000000UL; ++i)
+                ;
+            // servo_angle_set(1500, 1500);
+            stop = true;
+        }
+    }
+
+    if (stop == false)
     {
         servo_angle_set(left_servo_width, right_servo_width);
     }
-    else
+    else if (stop == true)
     {
         servo_angle_set(1500, 1500);
     }
@@ -299,7 +361,7 @@ int main(void)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
     SSD_init();                    // Initialize SSD
-    SysTick_Config(FREQUENCY / 4); // Configure for 1ms intervals (1kHz)
+    SysTick_Config(FREQUENCY / 8); // Configure for 1ms intervals (1kHz)
 
     // button setup
     EXTI->IMR |= (1 << BTN_PIN);            // unmasks EXTI so it can be used
@@ -323,9 +385,12 @@ int main(void)
     RCC->APB1ENR |= RCC_APB1ENR_TIM5EN; // Enable TIM5 clock
     TIM5->PSC = 15;                     // Prescaler: (16MHz/(15+1) = 1MHz) -> 1us ticks
     // Set ARR so the timer wraps every 0.1s (100,000 us) while keeping 1us resolution
-    TIM5->ARR = 100000 - 1;  // Auto-reload: 100000 ticks -> 0.1s period
-    TIM5->EGR = TIM_EGR_UG;  // Update event generation register
-    TIM5->CR1 = TIM_CR1_CEN; // Enable TIM5
+    TIM5->ARR = 100000 - 1;         // Auto-reload: 100000 ticks -> 0.1s period
+    TIM5->DIER |= TIM_DIER_UIE;     // Enable update interrupt
+    TIM5->EGR = TIM_EGR_UG;         // Update event generation register
+    NVIC_EnableIRQ(TIM5_IRQn);      // Enable TIM2 interrupt in NVIC
+    NVIC_SetPriority(TIM5_IRQn, 3); // Set priority for TIM2
+    TIM5->CR1 = TIM_CR1_CEN;        // Enable TIM5
 
     // tim 3 for sonic servo
     //  Enable GPIOC and TIM3 clocks
@@ -363,6 +428,12 @@ int main(void)
     stop = true;
     hash_stop = false;
     checkSensor = false;
+    checking = false;
+    parkLeft = false;
+    parkRight = false;
+    timer = 0;
+    parking = false;
+    stopParking = false;
 
     sensor_angle_set(0);
     for (volatile int i = 0; i < 10000000UL; ++i)
