@@ -213,6 +213,7 @@ int previous_state = 0;
 int speed_left = 1590;
 int speed_right = 1410;
 bool checkSensor = false;
+bool stopLine = false;
 void SysTick_Handler(void)
 {
     int IRSensorReading = IR_PORT->IDR & 0x0F;
@@ -308,13 +309,13 @@ void SysTick_Handler(void)
             left_servo_width = 1600;
             right_servo_width = 1580;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 1000000UL; ++i)
+            for (volatile int i = 0; i < 1100000UL; ++i)
                 ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 10000000UL; ++i)
-                ;
+            // for (volatile int i = 0; i < 10000000UL; ++i)
+            //     ;
             // servo_angle_set(1500, 1500);
             // stop = true;
         }
@@ -323,8 +324,8 @@ void SysTick_Handler(void)
             left_servo_width = 1400;
             right_servo_width = 1380;
             servo_angle_set(left_servo_width, right_servo_width);
-            // for (volatile int i = 0; i < 1100000UL; ++i)
-            //     ;
+            for (volatile int i = 0; i < 900000UL; ++i)
+                ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
             servo_angle_set(left_servo_width, right_servo_width);
@@ -346,6 +347,7 @@ void SysTick_Handler(void)
 
     if (parking && IRSensorReading == 0)
     {
+        stop = true;
         servo_angle_set(1500, 1500);
     }
 }
@@ -439,6 +441,7 @@ int main(void)
     timer = 0;
     parking = false;
     stopParking = false;
+    stopLine = false;
 
     sensor_angle_set(0);
     for (volatile int i = 0; i < 10000000UL; ++i)
