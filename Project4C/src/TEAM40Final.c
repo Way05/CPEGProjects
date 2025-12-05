@@ -309,7 +309,7 @@ void SysTick_Handler(void)
             left_servo_width = 1600;
             right_servo_width = 1580;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 1100000UL; ++i)
+            for (volatile int i = 0; i < 1025000UL; ++i)
                 ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
@@ -324,7 +324,7 @@ void SysTick_Handler(void)
             left_servo_width = 1400;
             right_servo_width = 1380;
             servo_angle_set(left_servo_width, right_servo_width);
-            for (volatile int i = 0; i < 900000UL; ++i)
+            for (volatile int i = 0; i < 850000UL; ++i)
                 ;
             left_servo_width = speed_left;
             right_servo_width = speed_right;
